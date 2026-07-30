@@ -1,0 +1,91 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: PHP ${{ matrix.php }} - ${{ matrix.dependencies }} deps
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.3', '8.4', '8.5']
+        dependencies: [locked]
+        include:
+          # Prove the declared lower bounds (phpunit ^11, phpstan ^2.0) resolve
+          # and pass. Installing from composer.lock alone never exercises them.
+          - php: '8.3'
+            dependencies: lowest
+          # Catch upstream releases before consumers do.
+          - php: '8.5'
+            dependencies: highest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: pcov
+
+      - name: Locate Composer cache
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Composer downloads
+        uses: actions/cache@v6
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: composer-${{ matrix.php }}-${{ matrix.dependencies }}-${{ hashFiles('composer.json', 'composer.lock') }}
+          restore-keys: |
+            composer-${{ matrix.php }}-${{ matrix.dependencies }}-
+            composer-${{ matrix.php }}-
+
+      - name: Install dependencies
+        run: |
+          case '${{ matrix.dependencies }}' in
+            locked)
+              composer install --no-interaction --no-progress --prefer-dist
+              ;;
+            lowest)
+              composer update --prefer-lowest --prefer-stable --no-interaction --no-progress --prefer-dist
+              ;;
+            highest)
+              composer update --no-interaction --no-progress --prefer-dist
+              ;;
+          esac
+
+      - name: Run tests
+        run: ./vendor/bin/phpunit --coverage-text
+
+  phpstan:
+    name: PHPStan
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Run PHPStan
+        run: ./vendor/bin/phpstan analyse --no-progress

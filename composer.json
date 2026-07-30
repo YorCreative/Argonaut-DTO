@@ -1,0 +1,65 @@
+{
+    "name": "yorcreative/argonaut-dto",
+    "description": "A framework-agnostic PHP DTO package that provides nested casting, recursive serialization, validation, assemblers, and immutable DTO support out of the box.",
+    "type": "library",
+    "license": "MIT",
+    "homepage": "https://github.com/YorCreative/Argonaut-DTO",
+    "keywords": [
+        "dto",
+        "data-transfer-object",
+        "php",
+        "php-dto",
+        "serialization",
+        "validation",
+        "nested-dto",
+        "value-objects",
+        "assembler",
+        "immutable-dto"
+    ],
+    "require": {
+        "php": "^8.3",
+        "yorcreative/data-validation": "^1.0"
+    },
+    "require-dev": {
+        "laravel/pint": "^1.30",
+        "phpstan/phpstan": "^2.0",
+        "phpunit/phpunit": "^11.0|^12.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "YorCreative\\ArgonautDTO\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "YorCreative\\ArgonautDTO\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "vendor/bin/phpunit",
+        "coverage": "vendor/bin/phpunit --coverage-text",
+        "phpstan": "vendor/bin/phpstan analyse",
+        "lint": "vendor/bin/pint",
+        "lint:test": "vendor/bin/pint --test"
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "support": {
+        "issues": "https://github.com/YorCreative/Argonaut-DTO/issues",
+        "source": "https://github.com/YorCreative/Argonaut-DTO"
+    },
+    "funding": [
+        {
+            "type": "github",
+            "url": "https://github.com/sponsors/YorCreative"
+        }
+    ],
+    "extra": {
+        "branch-alias": {
+            "dev-main": "1.x-dev"
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}
