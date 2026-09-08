@@ -62,6 +62,20 @@ final class FactoriesTest extends TestCase
         self::assertInstanceOf(TagDTO::class, $dto->tag);
         self::assertSame('z', $dto->tag->name);
     }
+
+    public function test_from_json_rejects_valid_json_that_is_not_an_object(): void
+    {
+        $this->expectException(JsonException::class);
+
+        ProfileDTO::fromJson('null');
+    }
+
+    public function test_from_json_rejects_a_bare_json_scalar(): void
+    {
+        $this->expectException(JsonException::class);
+
+        ProfileDTO::fromJson('"just a string"');
+    }
 }
 
 final class ImmutableFactoryDTO extends ArgonautImmutableDTO

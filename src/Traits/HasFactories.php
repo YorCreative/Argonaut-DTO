@@ -18,13 +18,21 @@ trait HasFactories
     }
 
     /**
-     * @throws \JsonException when $json is not a valid JSON object
+     * @throws \JsonException when $json is not valid JSON, or does not decode to an object
      */
     public static function fromJson(string $json): static
     {
-        /** @var array<string, mixed> $decoded */
         $decoded = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
 
+        if (! is_array($decoded)) {
+            throw new \JsonException(sprintf(
+                '%s::fromJson() expects a JSON object, %s given.',
+                static::class,
+                get_debug_type($decoded),
+            ));
+        }
+
+        /** @var array<string, mixed> $decoded */
         return new static($decoded);
     }
 }
