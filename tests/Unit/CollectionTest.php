@@ -140,4 +140,55 @@ final class CollectionTest extends TestCase
     {
         self::assertSame([1, 'two'], (new Collection([1, 'two']))->jsonSerialize());
     }
+
+    public function test_reduce_folds_items_into_an_accumulator(): void
+    {
+        $sum = (new Collection([1, 2, 3]))->reduce(
+            static fn (int $carry, int $item): int => $carry + $item,
+            0
+        );
+
+        self::assertSame(6, $sum);
+    }
+
+    public function test_reduce_returns_the_initial_value_when_empty(): void
+    {
+        self::assertSame(9, (new Collection)->reduce(static fn (int $c, mixed $i): int => $c + 1, 9));
+    }
+
+    public function test_reduce_passes_the_key_as_the_third_argument(): void
+    {
+        $keys = (new Collection(['a' => 1, 'b' => 2]))->reduce(
+            static fn (array $carry, int $item, string|int $key): array => [...$carry, $key],
+            []
+        );
+
+        self::assertSame(['a', 'b'], $keys);
+    }
+
+    public function test_last_returns_the_final_item(): void
+    {
+        self::assertSame('c', (new Collection(['a', 'b', 'c']))->last());
+    }
+
+    public function test_last_returns_the_default_when_empty(): void
+    {
+        self::assertSame('fallback', (new Collection)->last('fallback'));
+    }
+
+    public function test_contains_finds_a_value_strictly(): void
+    {
+        $collection = new Collection([1, 2, 3]);
+
+        self::assertTrue($collection->contains(2));
+        self::assertFalse($collection->contains('2'));
+    }
+
+    public function test_contains_accepts_a_predicate(): void
+    {
+        $collection = new Collection([1, 2, 3]);
+
+        self::assertTrue($collection->contains(static fn (int $item): bool => $item > 2));
+        self::assertFalse($collection->contains(static fn (int $item): bool => $item > 9));
+    }
 }

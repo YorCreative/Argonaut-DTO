@@ -3,6 +3,7 @@
 namespace YorCreative\ArgonautDTO;
 
 use ArrayAccess;
+use Closure;
 use Countable;
 use IteratorAggregate;
 use JsonSerializable;
@@ -74,6 +75,59 @@ class Collection implements ArrayAccess, Countable, IteratorAggregate, JsonSeria
         }
 
         return $default;
+    }
+
+    /**
+     * @template TReduce
+     *
+     * @param  callable(TReduce, TValue, int|string): TReduce  $callback
+     * @param  TReduce  $initial
+     * @return TReduce
+     */
+    public function reduce(callable $callback, mixed $initial = null): mixed
+    {
+        $accumulator = $initial;
+
+        foreach ($this->items as $key => $item) {
+            $accumulator = $callback($accumulator, $item, $key);
+        }
+
+        return $accumulator;
+    }
+
+    /**
+     * @template TDefault
+     *
+     * @param  TDefault  $default
+     * @return TValue|TDefault
+     */
+    public function last(mixed $default = null): mixed
+    {
+        if ($this->items === []) {
+            return $default;
+        }
+
+        return $this->items[array_key_last($this->items)];
+    }
+
+    /**
+     * Accepts either a value compared strictly, or a predicate.
+     *
+     * @param  TValue|callable(TValue, int|string): bool  $value
+     */
+    public function contains(mixed $value): bool
+    {
+        if (! $value instanceof Closure) {
+            return in_array($value, $this->items, true);
+        }
+
+        foreach ($this->items as $key => $item) {
+            if ($value($item, $key)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public function isEmpty(): bool
