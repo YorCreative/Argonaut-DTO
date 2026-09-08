@@ -30,6 +30,9 @@ jobs:
           php-version: '8.5'
           coverage: none
 
+      - name: Audit lockfile before install
+        run: composer audit --locked
+
       - name: Install dependencies
         run: composer install --no-interaction --no-progress --prefer-dist
 

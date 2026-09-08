@@ -213,7 +213,7 @@ composer lint
 ```
 
 Continuous integration runs the suite on PHP 8.3, 8.4, and 8.5 against locked, lowest, and highest dependency sets,
-alongside PHPStan, Pint, Composer validation, dependency audits, and scheduled Composer security audits.
+alongside PHPStan, Pint, Composer validation, GitHub dependency review, and scheduled Composer security audits.
 
 ## Credits
 

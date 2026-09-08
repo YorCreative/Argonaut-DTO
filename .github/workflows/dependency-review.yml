@@ -28,8 +28,10 @@ jobs:
       - name: Validate composer metadata
         run: composer validate --strict
 
-      - name: Install dependencies
-        run: composer install --no-interaction --no-progress --prefer-dist
+      - name: Audit lockfile
+        run: composer audit --locked
 
-      - name: Audit dependencies
-        run: composer audit
+      - name: Review dependency changes
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: moderate
