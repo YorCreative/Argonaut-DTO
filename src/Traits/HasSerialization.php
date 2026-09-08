@@ -169,7 +169,10 @@ trait HasSerialization
         return array_diff_key($this->toArray(), array_flip($keys));
     }
 
-    /** @param array<int, array<string, mixed>> $items */
+    /**
+     * @param  array<int, array<string, mixed>>  $items
+     * @return Collection<static>
+     */
     public static function collection(array $items = []): Collection
     {
         return (new Collection($items))->map(fn (mixed $item): static => new static($item));

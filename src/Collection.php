@@ -14,27 +14,34 @@ use Traversable;
  * It provides the operations DTO consumers normally need without requiring
  * Illuminate or another collection framework.
  *
- * @implements ArrayAccess<int|string, mixed>
- * @implements IteratorAggregate<int|string, mixed>
+ * @template TValue
+ *
+ * @implements ArrayAccess<int|string, TValue>
+ * @implements IteratorAggregate<int|string, TValue>
  */
 class Collection implements ArrayAccess, Countable, IteratorAggregate, JsonSerializable
 {
-    /** @var array<int|string, mixed> */
+    /** @var array<int|string, TValue> */
     protected array $items;
 
-    /** @param iterable<int|string, mixed> $items */
+    /** @param iterable<int|string, TValue> $items */
     public function __construct(iterable $items = [])
     {
         $this->items = is_array($items) ? $items : iterator_to_array($items);
     }
 
-    /** @return array<int|string, mixed> */
+    /** @return array<int|string, TValue> */
     public function all(): array
     {
         return $this->items;
     }
 
-    /** @param callable(mixed, int|string): mixed $callback */
+    /**
+     * @template TMapped
+     *
+     * @param  callable(TValue, int|string): TMapped  $callback
+     * @return static<TMapped>
+     */
     public function map(callable $callback): static
     {
         $mapped = [];
@@ -46,12 +53,20 @@ class Collection implements ArrayAccess, Countable, IteratorAggregate, JsonSeria
         return new static($mapped);
     }
 
-    /** @param callable(mixed, int|string): bool|null $callback */
+    /**
+     * @param  (callable(TValue, int|string): bool)|null  $callback
+     */
     public function filter(?callable $callback = null): static
     {
         return new static(array_filter($this->items, $callback, ARRAY_FILTER_USE_BOTH));
     }
 
+    /**
+     * @template TDefault
+     *
+     * @param  TDefault  $default
+     * @return TValue|TDefault
+     */
     public function first(mixed $default = null): mixed
     {
         foreach ($this->items as $item) {
@@ -76,6 +91,7 @@ class Collection implements ArrayAccess, Countable, IteratorAggregate, JsonSeria
         return new static(array_values($this->items));
     }
 
+    /** @return Traversable<int|string, TValue> */
     public function getIterator(): Traversable
     {
         yield from $this->items;
@@ -91,11 +107,13 @@ class Collection implements ArrayAccess, Countable, IteratorAggregate, JsonSeria
         return isset($this->items[$offset]);
     }
 
+    /** @return TValue|null */
     public function offsetGet(mixed $offset): mixed
     {
         return $this->items[$offset] ?? null;
     }
 
+    /** @param TValue $value */
     public function offsetSet(mixed $offset, mixed $value): void
     {
         if ($offset === null) {

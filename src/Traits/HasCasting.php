@@ -171,6 +171,7 @@ trait HasCasting
         };
     }
 
+    /** @return Collection<mixed> */
     protected function castToCollectionModel(string $cast, mixed $value): Collection
     {
         [, $class] = explode(':', $cast, 2);
