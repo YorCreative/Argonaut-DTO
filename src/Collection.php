@@ -130,6 +130,83 @@ class Collection implements ArrayAccess, Countable, IteratorAggregate, JsonSeria
         return false;
     }
 
+    /**
+     * @param  string  $value  key or property to extract from each item
+     * @param  string|null  $key  key or property to index the result by
+     */
+    public function pluck(string $value, ?string $key = null): static
+    {
+        $plucked = [];
+
+        foreach ($this->items as $item) {
+            $extracted = $this->extract($item, $value);
+
+            if ($key === null) {
+                $plucked[] = $extracted;
+
+                continue;
+            }
+
+            /** @var int|string $index */
+            $index = $this->extract($item, $key);
+            $plucked[$index] = $extracted;
+        }
+
+        return new static($plucked);
+    }
+
+    /**
+     * @param  callable(TValue, int|string): (int|string)  $callback
+     */
+    public function groupBy(callable $callback): static
+    {
+        $groups = [];
+
+        foreach ($this->items as $key => $item) {
+            $groups[$callback($item, $key)][] = $item;
+        }
+
+        /** @var array<string|int, mixed> $collections */
+        $collections = [];
+
+        foreach ($groups as $group => $items) {
+            $collections[$group] = new static($items);
+        }
+
+        return new static($collections);
+    }
+
+    /**
+     * @param  callable(TValue, int|string): (int|string)  $callback
+     */
+    public function keyBy(callable $callback): static
+    {
+        $keyed = [];
+
+        foreach ($this->items as $key => $item) {
+            $keyed[$callback($item, $key)] = $item;
+        }
+
+        return new static($keyed);
+    }
+
+    private function extract(mixed $item, string $key): mixed
+    {
+        if (is_array($item)) {
+            return $item[$key] ?? null;
+        }
+
+        if ($item instanceof ArrayAccess) {
+            return $item->offsetExists($key) ? $item[$key] : null;
+        }
+
+        if (is_object($item)) {
+            return $item->{$key} ?? null;
+        }
+
+        return null;
+    }
+
     public function isEmpty(): bool
     {
         return $this->items === [];
