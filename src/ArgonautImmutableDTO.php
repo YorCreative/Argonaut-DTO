@@ -4,12 +4,14 @@ namespace YorCreative\ArgonautDTO;
 
 use ReflectionProperty;
 use YorCreative\ArgonautDTO\Traits\HasCasting;
+use YorCreative\ArgonautDTO\Traits\HasFactories;
 use YorCreative\ArgonautDTO\Traits\HasSerialization;
 use YorCreative\ArgonautDTO\Traits\HasValidation;
 
 abstract class ArgonautImmutableDTO implements ArgonautDTOContract
 {
     use HasCasting;
+    use HasFactories;
     use HasSerialization;
     use HasValidation;
 

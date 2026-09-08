@@ -3,12 +3,14 @@
 namespace YorCreative\ArgonautDTO;
 
 use YorCreative\ArgonautDTO\Traits\HasCasting;
+use YorCreative\ArgonautDTO\Traits\HasFactories;
 use YorCreative\ArgonautDTO\Traits\HasSerialization;
 use YorCreative\ArgonautDTO\Traits\HasValidation;
 
 class ArgonautDTO implements ArgonautDTOContract
 {
     use HasCasting;
+    use HasFactories;
     use HasSerialization;
     use HasValidation;
 
