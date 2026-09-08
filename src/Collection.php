@@ -157,6 +157,7 @@ class Collection implements ArrayAccess, Countable, IteratorAggregate, JsonSeria
 
     /**
      * @param  callable(TValue, int|string): (int|string)  $callback
+     * @return static<static<TValue>>
      */
     public function groupBy(callable $callback): static
     {
@@ -166,7 +167,6 @@ class Collection implements ArrayAccess, Countable, IteratorAggregate, JsonSeria
             $groups[$callback($item, $key)][] = $item;
         }
 
-        /** @var array<string|int, mixed> $collections */
         $collections = [];
 
         foreach ($groups as $group => $items) {

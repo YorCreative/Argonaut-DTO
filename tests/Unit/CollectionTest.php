@@ -254,4 +254,19 @@ final class CollectionTest extends TestCase
         self::assertCount(1, $keyed);
         self::assertSame(2, $keyed['a']['v']);
     }
+
+    public function test_pluck_reads_array_access_offsets(): void
+    {
+        $collection = new Collection([
+            new Collection(['name' => 'x']),
+            new Collection(['name' => 'y']),
+        ]);
+
+        self::assertSame(['x', 'y'], $collection->pluck('name')->all());
+    }
+
+    public function test_pluck_yields_null_for_a_missing_array_access_offset(): void
+    {
+        self::assertSame([null], (new Collection([new Collection([])]))->pluck('absent')->all());
+    }
 }
