@@ -4,8 +4,11 @@ namespace YorCreative\ArgonautDTO\Traits;
 
 use DateTimeInterface;
 use InvalidArgumentException;
+use ReflectionAttribute;
+use ReflectionClass;
 use Traversable;
 use YorCreative\ArgonautDTO\ArgonautDTOContract;
+use YorCreative\ArgonautDTO\Attributes\CastAttribute;
 use YorCreative\ArgonautDTO\Collection;
 
 trait HasCasting
@@ -16,9 +19,20 @@ trait HasCasting
     /** @var array<string, class-string> */
     protected array $nestedAssemblers = [];
 
+    /**
+     * Per-class attribute-derived casts. Memoized for the same reason
+     * ArgonautDTO::$setterMap is: reflecting every property on every
+     * hydration would dominate cost in a loop.
+     *
+     * @var array<class-string, array<string, string|array<int, string>>>
+     */
+    protected static array $attributeCastMap = [];
+
     protected function castInputValue(string $key, mixed $value): mixed
     {
-        $cast = $this->casts[$key] ?? null;
+        // $casts is an instance property a consumer may mutate at runtime, so it
+        // is looked up first and never folded into the static per-class cache.
+        $cast = $this->casts[$key] ?? $this->attributeCasts()[$key] ?? null;
         $hasNestedAssembler = isset($this->nestedAssemblers[$key]);
 
         if ($hasNestedAssembler && $cast !== null) {
@@ -26,6 +40,40 @@ trait HasCasting
         }
 
         return $this->applyCast($cast, $value);
+    }
+
+    /**
+     * @return array<string, string|array<int, string>>
+     */
+    private function attributeCasts(): array
+    {
+        $class = static::class;
+
+        if (! isset(static::$attributeCastMap[$class])) {
+            static::$attributeCastMap[$class] = $this->discoverAttributeCasts();
+        }
+
+        return static::$attributeCastMap[$class];
+    }
+
+    /**
+     * @return array<string, string|array<int, string>>
+     */
+    private function discoverAttributeCasts(): array
+    {
+        $casts = [];
+
+        foreach ((new ReflectionClass($this))->getProperties() as $property) {
+            $attributes = $property->getAttributes(CastAttribute::class, ReflectionAttribute::IS_INSTANCEOF);
+
+            if ($attributes === []) {
+                continue;
+            }
+
+            $casts[$property->getName()] = $attributes[0]->newInstance()->toCast();
+        }
+
+        return $casts;
     }
 
     /** @param string|array<int, mixed> $cast */
