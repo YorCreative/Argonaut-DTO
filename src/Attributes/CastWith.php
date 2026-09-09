@@ -8,10 +8,14 @@ use Attribute;
 final class CastWith implements CastAttribute
 {
     /** @param class-string $cast */
-    public function __construct(public string $cast) {}
+    public function __construct(
+        public string $cast,
+        public bool $many = false,
+    ) {}
 
-    public function toCast(): string
+    /** @return string|array<int, string> */
+    public function toCast(): string|array
     {
-        return $this->cast;
+        return $this->many ? [$this->cast] : $this->cast;
     }
 }

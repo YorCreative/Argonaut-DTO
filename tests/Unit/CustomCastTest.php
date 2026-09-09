@@ -7,6 +7,7 @@ use YorCreative\ArgonautDTO\Attributes\CastWith;
 use YorCreative\ArgonautDTO\CastsArgonautAttribute;
 use YorCreative\ArgonautDTO\Collection;
 use YorCreative\ArgonautDTO\Tests\Fixtures\AssembledCustomCastDTO;
+use YorCreative\ArgonautDTO\Tests\Fixtures\AttributedArrayCustomCastDTO;
 use YorCreative\ArgonautDTO\Tests\Fixtures\AttributedCustomCastDTO;
 use YorCreative\ArgonautDTO\Tests\Fixtures\ConflictingCustomCastDTO;
 use YorCreative\ArgonautDTO\Tests\Fixtures\CountingCast;
@@ -115,5 +116,12 @@ final class CustomCastTest extends TestCase
         $dto = new AssembledCustomCastDTO(['collection' => [['x' => 'ada']]]);
 
         self::assertSame([['x' => 'ada']], $dto->collection->all());
+    }
+
+    public function test_the_cast_with_attribute_supports_the_array_form(): void
+    {
+        $dto = new AttributedArrayCustomCastDTO(['tags' => ['ada', 'grace']]);
+
+        self::assertSame(['ADA', 'GRACE'], $dto->tags);
     }
 }

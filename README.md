@@ -234,13 +234,13 @@ class InvoiceDTO extends ArgonautDTO
 ```
 
 A custom cast works with all three cast container forms used elsewhere in
-this library:
+this library, with either declaration:
 
-| `$casts` value | Behavior |
-| --- | --- |
-| `MoneyCast::class` | Applied to the value once |
-| `[MoneyCast::class]` | Value is iterated as an array; applied to each item |
-| `'collection:'.MoneyCast::class` | Value is iterated as a `Collection`; applied to each item, result is a `Collection` |
+| `$casts` value | `#[CastWith]` equivalent | Behavior |
+| --- | --- | --- |
+| `MoneyCast::class` | `#[CastWith(MoneyCast::class)]` | Applied to the value once |
+| `[MoneyCast::class]` | `#[CastWith(MoneyCast::class, many: true)]` | Value is iterated as an array; applied to each item |
+| `'collection:'.MoneyCast::class` | `#[CastWith('collection:'.MoneyCast::class)]` | Value is iterated as a `Collection`; applied to each item, result is a `Collection` |
 
 ```php
 class OrderDTO extends ArgonautDTO
@@ -271,10 +271,7 @@ $order->lineTotals;         // ['$5.00', '$7.50']
 $order->refunds->all();     // ['$1.00']
 ```
 
-`#[CastWith]` takes a single class-string constructor argument, so the
-array-of-values form above is only reachable through `$casts`. The
-single-value and `'collection:'`-prefixed forms work with either
-declaration:
+The same three forms via `#[CastWith]`:
 
 ```php
 class InvoiceDTO extends ArgonautDTO
@@ -282,10 +279,24 @@ class InvoiceDTO extends ArgonautDTO
     #[CastWith(MoneyCast::class)]
     public mixed $total = null;
 
+    /** @var array<int, mixed> */
+    #[CastWith(MoneyCast::class, many: true)]
+    public array $lineTotals = [];
+
     /** @var Collection<mixed> */
     #[CastWith('collection:'.MoneyCast::class)]
-    public ?Collection $adjustments = null;
+    public ?Collection $refunds = null;
 }
+
+$invoice = new InvoiceDTO([
+    'total' => 4250,
+    'lineTotals' => [500, 750],
+    'refunds' => [100],
+]);
+
+$invoice->total;              // '$42.50'
+$invoice->lineTotals;         // ['$5.00', '$7.50']
+$invoice->refunds->all();     // ['$1.00']
 ```
 
 Where a property has both a `$casts` entry and a `#[CastWith]` attribute,
