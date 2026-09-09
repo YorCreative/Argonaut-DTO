@@ -269,4 +269,9 @@ final class CollectionTest extends TestCase
     {
         self::assertSame([null], (new Collection([new Collection([])]))->pluck('absent')->all());
     }
+
+    public function test_pluck_yields_null_for_scalar_items(): void
+    {
+        self::assertSame([null, null], (new Collection([1, 'two']))->pluck('anything')->all());
+    }
 }
