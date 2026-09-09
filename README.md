@@ -351,8 +351,20 @@ the original, not duplicated. Because `ArgonautDTO` is mutable, that means
 mutating a nested DTO reached through the copy also mutates the original:
 
 ```php
+class OrderDTO extends ArgonautDTO
+{
+    public ?TagDTO $tag = null;
+
+    /** @var array<string, string> */
+    protected array $casts = ['tag' => TagDTO::class];
+}
+
+$original = new OrderDTO(['tag' => ['name' => 'draft']]);
 $copy = $original->with([]);
-$copy->address->setCity('Berlin');   // $original->address is now Berlin too
+
+$copy->tag->name = 'final';
+
+$original->tag->name;   // 'final' — the nested DTO is shared, not copied
 ```
 
 Rebuild nested values explicitly if you need them independent.
