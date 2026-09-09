@@ -334,6 +334,161 @@ final class InvoiceSnapshotDTO extends ArgonautImmutableDTO
 (new InvoiceSnapshotDTO(['total' => 4250]))->total;  // '$42.50'
 ```
 
+## Key mapping
+
+Incoming keys can be renamed to property names before anything else runs,
+either with a `$maps` array or with a `#[MapFrom]` attribute on the property:
+
+```php
+use YorCreative\ArgonautDTO\ArgonautDTO;
+use YorCreative\ArgonautDTO\Attributes\MapFrom;
+
+final class ProfileDTO extends ArgonautDTO
+{
+    protected array $maps = ['first_name' => 'firstName'];
+
+    public string $firstName = '';
+
+    #[MapFrom('last_name')]
+    public string $lastName = '';
+}
+
+$profile = new ProfileDTO(['first_name' => 'Ada', 'last_name' => 'Lovelace']);
+
+$profile->firstName; // 'Ada'
+$profile->lastName;  // 'Lovelace'
+```
+
+Both forms can be used on the same class. Where both describe the same
+**target property**, **`$maps` wins** and the `#[MapFrom]` attribute for that
+property is dropped entirely — even when the two forms name different
+incoming keys:
+
+```php
+final class ConflictingDTO extends ArgonautDTO
+{
+    // $maps wins: the #[MapFrom] attribute on $name below is dropped
+    // entirely, even though 'legacy_name' and 'name_field' are different
+    // incoming keys.
+    protected array $maps = ['legacy_name' => 'name'];
+
+    #[MapFrom('name_field')]
+    public string $name = '';
+}
+
+$dto = new ConflictingDTO(['legacy_name' => 'Ada', 'name_field' => 'ignored']);
+
+$dto->name; // 'Ada' — 'name_field' is no longer a recognized mapping, so it
+            // is just an unknown input key and is ignored.
+```
+
+Key mapping runs before anything else that processes input — before the
+`$prioritizedAttributes` pass and before casting. A `$casts` entry (or cast
+attribute) for a mapped property is therefore keyed by the **property name**,
+not the incoming key:
+
+```php
+final class AmountDTO extends ArgonautDTO
+{
+    #[MapFrom('unit_price')]
+    public int $price = 0;
+
+    // Casting looks up 'price' — the property name — not 'unit_price', the
+    // incoming key, because mapping already ran and renamed the key.
+    protected array $casts = ['price' => 'integer'];
+}
+
+$amount = new AmountDTO(['unit_price' => '4200']);
+
+$amount->price; // 4200 (int)
+```
+
+If both a mapped key and its target property name appear in the same input
+array, whichever occurs **later** in the array wins. `with()` relies on this:
+on `ArgonautImmutableDTO` it rebuilds by merging the current state (already
+keyed by property name) with the new attributes and re-running key mapping,
+so the freshly-mapped value — appended after the current state — wins:
+
+```php
+use YorCreative\ArgonautDTO\ArgonautImmutableDTO;
+
+final class ContactDTO extends ArgonautImmutableDTO
+{
+    protected array $maps = ['email_address' => 'email'];
+
+    public readonly string $email;
+}
+
+$contact = new ContactDTO(['email_address' => 'ada@example.com']);
+$contact->email; // 'ada@example.com'
+
+$updated = $contact->with(['email_address' => 'lovelace@example.com']);
+$updated->email; // 'lovelace@example.com'
+```
+
+Two output methods reverse the mapping: `toMappedArray(?int $depth = null)`
+and `toMappedJson(int $options = 0, ?int $depth = null)` rename each top-level
+key back to its incoming key. `toArray()` and `toJson()` are **unchanged** —
+they still emit property names:
+
+```php
+final class PersonDTO extends ArgonautDTO
+{
+    protected array $maps = ['first_name' => 'firstName'];
+
+    public string $firstName = '';
+}
+
+$person = new PersonDTO(['first_name' => 'Grace']);
+
+$person->toArray();       // ['firstName' => 'Grace']
+$person->toJson();        // '{"firstName":"Grace"}'
+$person->toMappedArray(); // ['first_name' => 'Grace']
+$person->toMappedJson();  // '{"first_name":"Grace"}'
+```
+
+`toMappedJson()` reports encoding failures exactly as `toJson()` does — both
+delegate to the same internal encoder.
+
+**Key mapping is top-level only.** `toMappedArray()` renames this DTO's own
+keys; it does not reach into nested DTOs and rename their keys too, even if
+the nested class declares its own `$maps` or `#[MapFrom]`:
+
+```php
+final class AddressDTO extends ArgonautDTO
+{
+    protected array $maps = ['zip_code' => 'zip'];
+
+    public string $zip = '';
+}
+
+final class CustomerDTO extends ArgonautDTO
+{
+    protected array $casts = ['address' => AddressDTO::class];
+
+    public ?AddressDTO $address = null;
+}
+
+$customer = new CustomerDTO(['address' => ['zip_code' => '10001']]);
+
+$customer->toArray();
+// ['address' => ['zip' => '10001']]
+
+$customer->toMappedArray();
+// ['address' => ['zip' => '10001']] — identical. toMappedArray() only
+// renames CustomerDTO's own top-level keys ('address' has no mapping here,
+// so it keeps its name). By the time it runs, toArray() has already
+// flattened $address into a plain array — AddressDTO's own $maps has no
+// object left to apply to.
+```
+
+This is inherent to how `toArray()` is used: it flattens the whole DTO graph
+into plain arrays before `toMappedArray()` ever sees it, and `toArray()`
+itself cannot be changed to preserve nested objects instead, because it is
+declared on `ArgonautDTOContract`, which consumers implement directly. A
+consumer with nested DTOs should expect only the outermost keys to be
+renamed.
+
 ## Serialization depth
 
 `toArray()`, `toJson()`, and `jsonSerialize()` walk the whole DTO graph:

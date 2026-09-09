@@ -7,8 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Targeting 1.1.0. One further feature is in progress and will land in this
-entry before it is tagged: key mapping.
+Targeting 1.1.0. The scope for this release is complete and it is awaiting
+release.
 
 ### Added
 
@@ -33,6 +33,19 @@ entry before it is tagged: key mapping.
   collection of DTOs in one call, with errors keyed by the item that failed.
 - `with()` on both `ArgonautDTO` and `ArgonautImmutableDTO`, returning a copy
   with the given attributes applied. Shallow copy: nested objects are shared.
+- Key mapping: incoming keys can be renamed to property names, either as
+  `protected array $maps = ['first_name' => 'firstName'];` or as a
+  `#[MapFrom('first_name')]` attribute on the property. Where both describe
+  the same target property, `$maps` wins and the attribute for that property
+  is dropped entirely, even when the two forms name different incoming keys.
+  Mapping runs before anything else that processes input — before
+  `$prioritizedAttributes` and before casting — so a `$casts` entry for a
+  mapped property is keyed by the property name, not the incoming key. New
+  `toMappedArray()` and `toMappedJson()` methods reverse the mapping on
+  output; `toArray()` and `toJson()` are unchanged. Key mapping is top-level
+  only: it does not rename keys inside nested DTOs, because by the time
+  `toArray()` runs, nested DTOs have already been flattened into plain
+  arrays.
 
 ### Changed (no behavior change)
 
@@ -75,10 +88,10 @@ lists alone will tell you nothing is wrong when it is. Concretely:
   trait method is checked against the inherited signature identically to a
   method declared directly on the class.
 
-Grep your DTOs for `fromArray`, `fromJson`, and `with`, and your `Collection`
-subclasses for `reduce`, `last`, `contains`, `pluck`, `groupBy`, `keyBy`,
-`validateAll`, `isValidAll` — then check each hit's return type and
-staticness, not just its parameters.
+Grep your DTOs for `fromArray`, `fromJson`, `with`, `toMappedArray`, and
+`toMappedJson`, and your `Collection` subclasses for `reduce`, `last`,
+`contains`, `pluck`, `groupBy`, `keyBy`, `validateAll`, `isValidAll` — then
+check each hit's return type and staticness, not just its parameters.
 
 `Collection` is now a generic class (`Collection<TValue>`). This is a
 static-analysis improvement with no runtime effect, but if you run PHPStan
