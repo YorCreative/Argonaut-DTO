@@ -7,6 +7,7 @@ use Closure;
 use Countable;
 use IteratorAggregate;
 use JsonSerializable;
+use LogicException;
 use Traversable;
 
 /**
@@ -272,5 +273,65 @@ class Collection implements ArrayAccess, Countable, IteratorAggregate, JsonSeria
 
             return $value;
         }, $this->items);
+    }
+
+    /**
+     * Validate every item, reporting errors keyed by the item's collection key.
+     *
+     * A non-DTO item, or a DTO whose class declares no rules(), is a
+     * programming error and surfaces as a LogicException rather than being
+     * reported as invalid.
+     *
+     * @return true|array<int|string, array<string, list<string>>>
+     *
+     * @throws ValidationException when $throw is true and any item is invalid.
+     */
+    public function validateAll(bool $throw = true): bool|array
+    {
+        $errors = [];
+        $firstFailure = null;
+
+        foreach ($this->items as $key => $item) {
+            if (! $item instanceof ArgonautDTOContract) {
+                throw new LogicException(sprintf(
+                    'Collection::validateAll() requires every item to implement %s; %s given at key %s.',
+                    ArgonautDTOContract::class,
+                    get_debug_type($item),
+                    var_export($key, true),
+                ));
+            }
+
+            $result = $item->validate(false);
+
+            if ($result !== true) {
+                /** @var array<string, list<string>> $result */
+                $errors[$key] = $result;
+                $firstFailure ??= $item;
+            }
+        }
+
+        if ($errors === []) {
+            return true;
+        }
+
+        if ($throw && $firstFailure !== null) {
+            // Re-raise the failing item's own exception rather than inventing
+            // an aggregate type. Index information is available via
+            // validateAll(false).
+            $firstFailure->validate(true);
+        }
+
+        return $errors;
+    }
+
+    /**
+     * Report whether every item satisfies its own rules().
+     *
+     * Only validation failure is reported as false. A non-DTO item or a
+     * missing rules() method is a programming error and is allowed to surface.
+     */
+    public function isValidAll(): bool
+    {
+        return $this->validateAll(false) === true;
     }
 }
