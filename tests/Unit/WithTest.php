@@ -5,6 +5,7 @@ namespace YorCreative\ArgonautDTO\Tests\Unit;
 use PHPUnit\Framework\TestCase;
 use YorCreative\ArgonautDTO\ArgonautDTO;
 use YorCreative\ArgonautDTO\Tests\Fixtures\DerivedNameDTO;
+use YorCreative\ArgonautDTO\Tests\Fixtures\ImmutablePointDTO;
 use YorCreative\ArgonautDTO\Tests\Fixtures\ProfileDTO;
 use YorCreative\ArgonautDTO\Tests\Fixtures\TagDTO;
 
@@ -88,5 +89,50 @@ final class WithTest extends TestCase
         $copy = $dto->with([]);
 
         self::assertSame($tag, $copy->tag);
+    }
+
+    public function test_with_returns_a_new_immutable_instance(): void
+    {
+        $point = new ImmutablePointDTO(['x' => 1, 'y' => 2]);
+
+        $moved = $point->with(['y' => 9]);
+
+        self::assertNotSame($point, $moved);
+        self::assertInstanceOf(ImmutablePointDTO::class, $moved);
+    }
+
+    public function test_with_preserves_unchanged_readonly_properties(): void
+    {
+        $moved = (new ImmutablePointDTO(['x' => 1, 'y' => 2]))->with(['y' => 9]);
+
+        self::assertSame(1, $moved->x);
+        self::assertSame(9, $moved->y);
+    }
+
+    public function test_with_does_not_mutate_the_original_immutable_dto(): void
+    {
+        $point = new ImmutablePointDTO(['x' => 1, 'y' => 2]);
+
+        $point->with(['y' => 9]);
+
+        self::assertSame(2, $point->y);
+    }
+
+    public function test_with_on_an_immutable_dto_accepts_no_changes(): void
+    {
+        $copy = (new ImmutablePointDTO(['x' => 1, 'y' => 2]))->with([]);
+
+        self::assertSame(1, $copy->x);
+        self::assertSame(2, $copy->y);
+    }
+
+    public function test_with_does_not_leak_internal_properties_into_the_copy(): void
+    {
+        // casts / nestedAssemblers / prioritizedAttributes must not be passed
+        // back through the constructor as if they were attributes.
+        $copy = (new ImmutablePointDTO(['x' => 1, 'y' => 2]))->with(['x' => 5]);
+
+        self::assertSame(5, $copy->x);
+        self::assertSame(2, $copy->y);
     }
 }

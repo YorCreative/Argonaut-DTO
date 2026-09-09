@@ -41,4 +41,37 @@ abstract class ArgonautImmutableDTO implements ArgonautDTOContract
     {
         (new ReflectionProperty($this, $key))->setValue($this, $value);
     }
+
+    /**
+     * Return a copy with the given attributes applied.
+     *
+     * Unlike the mutable base class this rebuilds from full state, because
+     * readonly properties cannot be reassigned on a clone. That is safe here:
+     * initializeFromAttributes() writes through reflection and never dispatches
+     * setters, so there is no derived-property pass to clobber.
+     *
+     * This is a shallow copy: nested objects are shared with the original.
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    public function with(array $attributes): static
+    {
+        return new static(array_merge($this->rawAttributes(), $attributes));
+    }
+
+    /**
+     * The current attribute values, without the framework's internal state.
+     *
+     * @return array<string, mixed>
+     */
+    private function rawAttributes(): array
+    {
+        $attributes = get_object_vars($this);
+
+        foreach ($this->getExcludedSerializationProperties() as $property) {
+            unset($attributes[$property]);
+        }
+
+        return $attributes;
+    }
 }
