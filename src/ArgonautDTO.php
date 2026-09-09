@@ -71,6 +71,23 @@ class ArgonautDTO implements ArgonautDTOContract
         return $this->setAttributes($attributes);
     }
 
+    /**
+     * Return a copy with the given attributes applied.
+     *
+     * The non-mutating twin of merge(). Only the changes are passed to
+     * setAttributes(), so setter-derived properties recompute correctly; a
+     * full-state rebuild would recompute them in the prioritized pass and then
+     * clobber them with stale values in the remaining pass.
+     *
+     * This is a shallow copy: nested objects are shared with the original.
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    public function with(array $attributes): static
+    {
+        return (clone $this)->setAttributes($attributes);
+    }
+
     /** @return array<string, mixed> */
     public function getAttributesToUpdate(): array
     {
