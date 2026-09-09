@@ -7,6 +7,7 @@ use YorCreative\ArgonautDTO\Tests\Fixtures\AttributedMappedDTO;
 use YorCreative\ArgonautDTO\Tests\Fixtures\ConflictingMappedDTO;
 use YorCreative\ArgonautDTO\Tests\Fixtures\ImmutableMappedDTO;
 use YorCreative\ArgonautDTO\Tests\Fixtures\MappedDTO;
+use YorCreative\ArgonautDTO\Tests\Fixtures\PrioritizedMappedDTO;
 
 final class KeyMappingTest extends TestCase
 {
@@ -60,5 +61,21 @@ final class KeyMappingTest extends TestCase
     public function test_the_maps_table_does_not_serialize(): void
     {
         self::assertSame(['firstName', 'lastName'], array_keys((new MappedDTO(['first_name' => 'Jane']))->toArray()));
+    }
+
+    public function test_mapping_runs_before_the_prioritized_pass(): void
+    {
+        // Input order is deliberately reversed relative to $prioritizedAttributes
+        // (['firstName', 'lastName']). If mapInputKeys() ran AFTER the
+        // prioritized loop, 'first_name' and 'last_name' would not match
+        // $prioritizedAttributes at all, so both keys would fall through to the
+        // remaining-attributes pass and be applied in this (reversed) input
+        // order instead of the canonical one: setLastName() would then run
+        // before setFirstName() ever sets firstName, deriving fullName from an
+        // empty firstName.
+        $dto = new PrioritizedMappedDTO(['last_name' => 'Doe', 'first_name' => 'Jane']);
+
+        self::assertSame('Jane', $dto->firstName);
+        self::assertSame('Jane Doe', $dto->fullName);
     }
 }
