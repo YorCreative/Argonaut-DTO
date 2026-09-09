@@ -50,7 +50,10 @@ abstract class ArgonautImmutableDTO implements ArgonautDTOContract
      * initializeFromAttributes() writes through reflection and never dispatches
      * setters, so there is no derived-property pass to clobber.
      *
-     * This is a shallow copy: nested objects are shared with the original.
+     * This is a shallow copy: nested objects are shared with the original, not
+     * duplicated. Mutating a nested DTO reached through the copy therefore
+     * mutates the original too. Rebuild nested values explicitly if you need
+     * them independent.
      *
      * @param  array<string, mixed>  $attributes
      */

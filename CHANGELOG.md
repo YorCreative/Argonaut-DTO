@@ -7,8 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Targeting 1.1.0. Three further features are in progress and will land in this
-entry before it is tagged: `with()`, custom cast classes, and key mapping.
+Targeting 1.1.0. Two further features are in progress and will land in this
+entry before it is tagged: custom cast classes and key mapping.
 
 ### Added
 
@@ -27,6 +27,8 @@ entry before it is tagged: `with()`, custom cast classes, and key mapping.
   decoding, so both are accepted and produce an empty DTO.
 - `Collection::validateAll()` and `Collection::isValidAll()` for validating a
   collection of DTOs in one call, with errors keyed by the item that failed.
+- `with()` on both `ArgonautDTO` and `ArgonautImmutableDTO`, returning a copy
+  with the given attributes applied. Shallow copy: nested objects are shared.
 
 ### Changed (no behavior change)
 
@@ -69,7 +71,7 @@ lists alone will tell you nothing is wrong when it is. Concretely:
   trait method is checked against the inherited signature identically to a
   method declared directly on the class.
 
-Grep your DTOs for `fromArray` and `fromJson`, and your `Collection`
+Grep your DTOs for `fromArray`, `fromJson`, and `with`, and your `Collection`
 subclasses for `reduce`, `last`, `contains`, `pluck`, `groupBy`, `keyBy`,
 `validateAll`, `isValidAll` — then check each hit's return type and
 staticness, not just its parameters.

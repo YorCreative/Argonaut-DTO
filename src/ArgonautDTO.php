@@ -79,7 +79,10 @@ class ArgonautDTO implements ArgonautDTOContract
      * full-state rebuild would recompute them in the prioritized pass and then
      * clobber them with stale values in the remaining pass.
      *
-     * This is a shallow copy: nested objects are shared with the original.
+     * This is a shallow copy: nested objects are shared with the original, not
+     * duplicated. Mutating a nested DTO reached through the copy therefore
+     * mutates the original too. Rebuild nested values explicitly if you need
+     * them independent.
      *
      * @param  array<string, mixed>  $attributes
      */

@@ -296,6 +296,52 @@ final class UserSnapshotDTO extends ArgonautImmutableDTO
 
 Readonly properties are initialized once during construction. Missing required properties remain uninitialized, allowing PHP's normal typed-property error to identify an incomplete snapshot.
 
+## Copying with changes
+
+`with()` returns a copy with the given attributes applied, leaving the original
+untouched. It is available on both base classes.
+
+```php
+$original = new UserDTO(['firstName' => 'Jane', 'lastName' => 'Doe']);
+$updated  = $original->with(['lastName' => 'Smith']);
+
+$updated->lastName;   // 'Smith'
+$original->lastName;  // 'Doe' — unchanged
+```
+
+Only the attributes you pass are re-applied, so setter-derived properties
+recompute from the new values rather than being overwritten with stale ones:
+
+```php
+class UserDTO extends ArgonautDTO
+{
+    public string $fullName = '';
+
+    protected array $prioritizedAttributes = ['firstName', 'lastName'];
+
+    public function setLastName(string $value): static
+    {
+        $this->lastName = $value;
+        $this->fullName = trim($this->firstName.' '.$value);
+
+        return $this;
+    }
+}
+
+$original->with(['lastName' => 'Smith'])->fullName;  // 'Jane Smith'
+```
+
+`with()` is a **shallow copy** — nested DTOs and other objects are shared with
+the original, not duplicated. Because `ArgonautDTO` is mutable, that means
+mutating a nested DTO reached through the copy also mutates the original:
+
+```php
+$copy = $original->with([]);
+$copy->address->setCity('Berlin');   // $original->address is now Berlin too
+```
+
+Rebuild nested values explicitly if you need them independent.
+
 ## Assemblers
 
 Assemblers resolve `to<ClassName>` first, then `from<ClassName>`:
