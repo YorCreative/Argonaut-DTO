@@ -58,18 +58,36 @@ release.
 - CI audits `composer.lock` before installing dependencies, and the
   dependency-review job now runs `actions/dependency-review-action`.
 - Development dependencies: `laravel/pint` 1.31.1, `phpstan/phpstan` 2.2.13.
+- **`getExcludedSerializationProperties()` now also excludes `maps`, so `maps`
+  is a reserved property name on both base classes.** This is a genuine
+  runtime behavior change for two kinds of existing code, not merely a static
+  one:
+  - If one of your v1.0.0 DTOs already declares its own `public`/`protected
+    array $maps`, that property now silently stops appearing in `toArray()`
+    and `toJson()` output — no error, no warning, just a missing key. (A
+    non-`array` `$maps` on an existing DTO is also newly a fatal type error,
+    since the trait declares `protected array $maps = [];`.)
+  - If you override `getExcludedSerializationProperties()` by copying the
+    v1.0.0 list and appending your own excluded names, `'maps'` is not in
+    your copy, so it now leaks into every serialized payload as `"maps":[]`
+    (or whatever you have set it to). Call
+    `parent::getExcludedSerializationProperties()` and merge into it, rather
+    than hard-coding the list, to avoid this.
 
 ### Upgrading from 1.0.0
 
-No public method was renamed, removed, or had its signature changed, and no
-runtime behavior changed for existing code.
+No public method was renamed, removed, or had its signature changed. One
+runtime behavior *did* change for existing code — see the `maps` bullet
+under **Changed** above — so do not read this release as behavior-neutral
+without checking that first.
 
-One thing to check before upgrading: this release adds methods to classes you
-subclass. PHP enforces signature compatibility on inherited methods, including
-static ones, so if one of your DTOs or collections already declares a method
-with one of these names, you may get a fatal error. **The dominant failure
-mode is the return type, not the parameter list** — comparing parameter
-lists alone will tell you nothing is wrong when it is. Concretely:
+One thing to check before upgrading: this release adds methods and one
+property to classes you subclass. PHP enforces signature compatibility on
+inherited methods, including static ones, so if one of your DTOs or
+collections already declares a method with one of these names, you may get a
+fatal error. **The dominant failure mode is the return type, not the
+parameter list** — comparing parameter lists alone will tell you nothing is
+wrong when it is. Concretely:
 
 - `static function fromArray(array $data): self`, `: YourDTO`, or with no
   return type at all — **fatal**. Only `: static` (optionally with an added
@@ -82,16 +100,34 @@ lists alone will tell you nothing is wrong when it is. Concretely:
   first, and `keyBy()` takes a *callable*, both unlike
   `Illuminate\Support\Collection`. A Laravel-shaped `last(?callable $callback
   = null, $default = null)` or a string-keyed `keyBy(string $column)` is
-  **fatal**. Laravel-shaped `contains`, `pluck`, `reduce` and `groupBy`
-  overrides are compatible.
+  **fatal**.
+- **Every one of `reduce`, `last`, `contains`, `pluck`, `groupBy` and
+  `keyBy` is fatal if your override omits a return type — which is how
+  `Illuminate\Support\Collection` declares all of them.** This library types
+  `pluck`/`groupBy`/`keyBy` as `: static` and `reduce`/`contains` as
+  `: mixed`/`: bool`; a child method with no return type at all is always a
+  widening and always fatal, regardless of what its parameters look like. Do
+  not assume `contains`, `pluck`, `reduce` or `groupBy` are safe just because
+  their parameter lists happen to match — check the return type on every
+  hit, not just `last`/`keyBy`.
+- `$maps` is a new `protected array` property on both base classes (see the
+  **Changed** entry above) — check for a pre-existing `$maps` property the
+  same way you would check for a method collision, since a type mismatch is a
+  fatal and a type match silently loses data.
+- Three new `protected` methods are also part of the collision surface, in
+  addition to the public ones above: `encodeJson()` (declared as
+  `encodeJson(array $data, int $options): string`; a same-named method with a
+  different signature is **fatal** — verified against a DTO that already
+  owned custom JSON encoding), `keyMaps()`, and `mapInputKeys()`.
 - Check any **trait** your DTOs or `Collection` subclasses `use`, too — a
   trait method is checked against the inherited signature identically to a
   method declared directly on the class.
 
-Grep your DTOs for `fromArray`, `fromJson`, `with`, `toMappedArray`, and
-`toMappedJson`, and your `Collection` subclasses for `reduce`, `last`,
-`contains`, `pluck`, `groupBy`, `keyBy`, `validateAll`, `isValidAll` — then
-check each hit's return type and staticness, not just its parameters.
+Grep your DTOs for `fromArray`, `fromJson`, `with`, `toMappedArray`,
+`toMappedJson`, `maps`, `encodeJson`, `keyMaps`, and `mapInputKeys`, and your
+`Collection` subclasses for `reduce`, `last`, `contains`, `pluck`, `groupBy`,
+`keyBy`, `validateAll`, `isValidAll` — then check each hit's return type and
+staticness, not just its parameters.
 
 `Collection` is now a generic class (`Collection<TValue>`). This is a
 static-analysis improvement with no runtime effect, but if you run PHPStan
