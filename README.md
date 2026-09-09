@@ -315,9 +315,22 @@ recompute from the new values rather than being overwritten with stale ones:
 ```php
 class UserDTO extends ArgonautDTO
 {
+    public string $firstName = '';
+
+    public string $lastName = '';
+
     public string $fullName = '';
 
+    /** @var list<string> */
     protected array $prioritizedAttributes = ['firstName', 'lastName'];
+
+    public function setFirstName(string $value): static
+    {
+        $this->firstName = $value;
+        $this->fullName = trim($value.' '.$this->lastName);
+
+        return $this;
+    }
 
     public function setLastName(string $value): static
     {
@@ -327,6 +340,8 @@ class UserDTO extends ArgonautDTO
         return $this;
     }
 }
+
+$original = new UserDTO(['firstName' => 'Jane', 'lastName' => 'Doe']);
 
 $original->with(['lastName' => 'Smith'])->fullName;  // 'Jane Smith'
 ```
