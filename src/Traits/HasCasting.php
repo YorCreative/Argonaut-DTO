@@ -9,6 +9,7 @@ use ReflectionClass;
 use Traversable;
 use YorCreative\ArgonautDTO\ArgonautDTOContract;
 use YorCreative\ArgonautDTO\Attributes\CastAttribute;
+use YorCreative\ArgonautDTO\CastsArgonautAttribute;
 use YorCreative\ArgonautDTO\Collection;
 
 trait HasCasting
@@ -28,6 +29,14 @@ trait HasCasting
      */
     protected static array $attributeCastMap = [];
 
+    /**
+     * One shared instance per cast class. Casts are required to be stateless,
+     * so sharing is safe and avoids constructing one per hydration.
+     *
+     * @var array<class-string, CastsArgonautAttribute>
+     */
+    protected static array $customCastInstances = [];
+
     protected function castInputValue(string $key, mixed $value): mixed
     {
         // $casts is an instance property a consumer may mutate at runtime, so it
@@ -39,7 +48,7 @@ trait HasCasting
             $value = $this->assembleNestedValue($key, $cast, $value);
         }
 
-        return $this->applyCast($cast, $value);
+        return $this->applyCast($cast, $value, $key);
     }
 
     /**
@@ -105,10 +114,20 @@ trait HasCasting
     }
 
     /** @param string|array<int, mixed>|null $cast */
-    private function applyCast(string|array|null $cast, mixed $value): mixed
+    private function applyCast(string|array|null $cast, mixed $value, string $key): mixed
     {
         if ($cast === null || $value === null) {
             return $value;
+        }
+
+        if (is_array($cast) && isset($cast[0]) && is_string($cast[0])
+            && is_subclass_of($cast[0], CastsArgonautAttribute::class)) {
+            $customCast = $this->customCast($cast[0]);
+
+            return array_map(
+                fn (mixed $item): mixed => $customCast->get($key, $item),
+                $this->normalizeIterableValue($value, 'array'),
+            );
         }
 
         if (is_array($cast) && isset($cast[0]) && is_string($cast[0])) {
@@ -131,6 +150,10 @@ trait HasCasting
             return $this->castToCollectionModel($cast, $value);
         }
 
+        if (is_subclass_of($cast, CastsArgonautAttribute::class)) {
+            return $this->customCast($cast)->get($key, $value);
+        }
+
         if (class_exists($cast)) {
             return $this->castToSingleModel($cast, $value);
         }
@@ -139,12 +162,21 @@ trait HasCasting
     }
 
     /**
+     * @param  class-string<CastsArgonautAttribute>  $cast
+     */
+    private function customCast(string $cast): CastsArgonautAttribute
+    {
+        return static::$customCastInstances[$cast] ??= new $cast;
+    }
+
+    /**
      * @param  string|array<int, mixed>  $cast
      * @return array{0: string|null, 1: bool}
      */
     private function castTarget(string|array $cast): array
     {
-        if (is_array($cast) && isset($cast[0]) && is_string($cast[0])) {
+        if (is_array($cast) && isset($cast[0]) && is_string($cast[0])
+            && ! is_subclass_of($cast[0], CastsArgonautAttribute::class)) {
             return [$cast[0], true];
         }
 
@@ -152,7 +184,12 @@ trait HasCasting
             return [explode(':', $cast, 2)[1], true];
         }
 
-        return [is_string($cast) && class_exists($cast) ? $cast : null, false];
+        return [
+            is_string($cast) && class_exists($cast) && ! is_subclass_of($cast, CastsArgonautAttribute::class)
+                ? $cast
+                : null,
+            false,
+        ];
     }
 
     private function isScalarCast(string $cast): bool
