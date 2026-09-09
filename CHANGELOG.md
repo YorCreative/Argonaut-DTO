@@ -7,11 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Targeting 1.1.0. Two further features are in progress and will land in this
-entry before it is tagged: custom cast classes and key mapping.
+Targeting 1.1.0. One further feature is in progress and will land in this
+entry before it is tagged: key mapping.
 
 ### Added
 
+- Custom cast classes: implement `CastsArgonautAttribute` and declare it either
+  as `protected array $casts = ['price' => MoneyCast::class]` or as
+  `#[CastWith(MoneyCast::class)]`. Implementations must be stateless — one
+  instance per cast class is shared.
 - Attribute-based casting: `#[CastTo]`, `#[CastCollection]` and `#[CastEnum]`
   property attributes as an alternative to the `$casts` array. Where both
   describe the same property, the `$casts` array takes precedence.

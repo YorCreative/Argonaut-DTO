@@ -188,6 +188,141 @@ path. If the DTO declares a `set<Property>()` setter for that property, the
 setter runs instead and is responsible for its own conversion — the attribute
 is silently never consulted.
 
+### Custom cast classes
+
+For a conversion the library doesn't know how to do — a value object, a
+domain-specific formatter — implement `CastsArgonautAttribute`:
+
+```php
+interface CastsArgonautAttribute
+{
+    public function get(string $key, mixed $value): mixed;
+}
+```
+
+Declare it the same way as any other cast — as a `$casts` entry or as a
+`#[CastWith]` attribute:
+
+```php
+use YorCreative\ArgonautDTO\ArgonautDTO;
+use YorCreative\ArgonautDTO\Attributes\CastWith;
+use YorCreative\ArgonautDTO\CastsArgonautAttribute;
+
+class MoneyCast implements CastsArgonautAttribute
+{
+    public function get(string $key, mixed $value): mixed
+    {
+        return sprintf('$%0.2f', $value / 100);
+    }
+}
+
+class OrderDTO extends ArgonautDTO
+{
+    protected array $casts = ['price' => MoneyCast::class];
+
+    public mixed $price = null;
+}
+
+class InvoiceDTO extends ArgonautDTO
+{
+    #[CastWith(MoneyCast::class)]
+    public mixed $total = null;
+}
+
+(new OrderDTO(['price' => 1999]))->price;    // '$19.99'
+(new InvoiceDTO(['total' => 4250]))->total;  // '$42.50'
+```
+
+A custom cast works with all three cast container forms used elsewhere in
+this library:
+
+| `$casts` value | Behavior |
+| --- | --- |
+| `MoneyCast::class` | Applied to the value once |
+| `[MoneyCast::class]` | Value is iterated as an array; applied to each item |
+| `'collection:'.MoneyCast::class` | Value is iterated as a `Collection`; applied to each item, result is a `Collection` |
+
+```php
+class OrderDTO extends ArgonautDTO
+{
+    protected array $casts = [
+        'price' => MoneyCast::class,
+        'lineTotals' => [MoneyCast::class],
+        'refunds' => 'collection:'.MoneyCast::class,
+    ];
+
+    public mixed $price = null;
+
+    /** @var array<int, mixed> */
+    public array $lineTotals = [];
+
+    /** @var Collection<mixed> */
+    public ?Collection $refunds = null;
+}
+
+$order = new OrderDTO([
+    'price' => 1999,
+    'lineTotals' => [500, 750],
+    'refunds' => [100],
+]);
+
+$order->price;              // '$19.99'
+$order->lineTotals;         // ['$5.00', '$7.50']
+$order->refunds->all();     // ['$1.00']
+```
+
+`#[CastWith]` takes a single class-string constructor argument, so the
+array-of-values form above is only reachable through `$casts`. The
+single-value and `'collection:'`-prefixed forms work with either
+declaration:
+
+```php
+class InvoiceDTO extends ArgonautDTO
+{
+    #[CastWith(MoneyCast::class)]
+    public mixed $total = null;
+
+    /** @var Collection<mixed> */
+    #[CastWith('collection:'.MoneyCast::class)]
+    public ?Collection $adjustments = null;
+}
+```
+
+Where a property has both a `$casts` entry and a `#[CastWith]` attribute,
+**`$casts` wins** — the same precedence rule as the other cast attributes:
+
+```php
+class ConflictingDTO extends ArgonautDTO
+{
+    protected array $casts = ['name' => 'string']; // wins over the attribute below
+
+    #[CastWith(UppercaseCast::class)]
+    public mixed $name = null;
+}
+
+(new ConflictingDTO(['name' => 'ada']))->name;  // 'ada', not 'ADA'
+```
+
+A custom cast never receives `null` — `setAttribute()` short-circuits null
+before casting reaches it, so implementations don't need a null check.
+
+Implementations **must be stateless and constructible with no arguments**.
+One instance is created per cast class and reused across every DTO that uses
+it — a cast that keeps state between calls will leak it, and a cast with a
+required constructor parameter raises `ArgumentCountError`.
+
+Custom casts work identically on `ArgonautDTO` and `ArgonautImmutableDTO`:
+
+```php
+final class InvoiceSnapshotDTO extends ArgonautImmutableDTO
+{
+    #[CastWith(MoneyCast::class)]
+    public readonly mixed $total;
+}
+
+(new InvoiceSnapshotDTO(['total' => 4250]))->total;  // '$42.50'
+```
+
 ## Serialization depth
 
 `toArray()`, `toJson()`, and `jsonSerialize()` walk the whole DTO graph:
