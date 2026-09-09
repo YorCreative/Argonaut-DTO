@@ -84,9 +84,12 @@ generic, so static analysis now narrows the elements.
 
 `fromJson()` throws `JsonException` on malformed JSON. It also throws
 `JsonException` when the JSON is valid but does not decode to an object — for
-example `'null'`, `'"a string"'`, or `'123'` — with a message naming the type it
+example `'null'`, `'"a string"'`, `'123'`, or a JSON array such as
+`'[{"fullName":"Ada"}]'` or `'[1,2]'` — with a message naming the type it
 found instead, such as `ProfileDTO::fromJson() expects a JSON object, null
-given.` All three named constructors are available on both `ArgonautDTO` and
+given.` An empty array (`'[]'`) is indistinguishable from an empty object
+(`'{}'`) once decoded, so both are accepted and produce an empty DTO. All
+three named constructors are available on both `ArgonautDTO` and
 `ArgonautImmutableDTO`.
 
 ## Nested casts
@@ -179,6 +182,11 @@ class ChildDTO extends ParentDTO
     protected array $casts = ['thing' => 'string'];
 }
 ```
+
+Like `$casts`, cast attributes only apply on the direct property-assignment
+path. If the DTO declares a `set<Property>()` setter for that property, the
+setter runs instead and is responsible for its own conversion — the attribute
+is silently never consulted.
 
 ## Serialization depth
 
