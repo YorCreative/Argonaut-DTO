@@ -60,18 +60,18 @@ abstract class ArgonautImmutableDTO implements ArgonautDTOContract
     }
 
     /**
-     * The current attribute values, without the framework's internal state.
+     * The current attribute values.
+     *
+     * Internal properties (casts, nestedAssemblers, prioritizedAttributes) are
+     * not filtered here: initializeFromAttributes() already skips them via
+     * isInternalProperty(), which reads the same exclusion list. If this helper
+     * ever gains a caller that does NOT go through the constructor, that caller
+     * must do its own filtering.
      *
      * @return array<string, mixed>
      */
     private function rawAttributes(): array
     {
-        $attributes = get_object_vars($this);
-
-        foreach ($this->getExcludedSerializationProperties() as $property) {
-            unset($attributes[$property]);
-        }
-
-        return $attributes;
+        return get_object_vars($this);
     }
 }

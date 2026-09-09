@@ -5,6 +5,7 @@ namespace YorCreative\ArgonautDTO\Tests\Unit;
 use PHPUnit\Framework\TestCase;
 use YorCreative\ArgonautDTO\ArgonautDTO;
 use YorCreative\ArgonautDTO\Tests\Fixtures\DerivedNameDTO;
+use YorCreative\ArgonautDTO\Tests\Fixtures\ImmutableHolderDTO;
 use YorCreative\ArgonautDTO\Tests\Fixtures\ImmutablePointDTO;
 use YorCreative\ArgonautDTO\Tests\Fixtures\ProfileDTO;
 use YorCreative\ArgonautDTO\Tests\Fixtures\TagDTO;
@@ -126,13 +127,33 @@ final class WithTest extends TestCase
         self::assertSame(2, $copy->y);
     }
 
-    public function test_with_does_not_leak_internal_properties_into_the_copy(): void
+    public function test_with_produces_a_copy_free_of_internal_properties(): void
     {
-        // casts / nestedAssemblers / prioritizedAttributes must not be passed
-        // back through the constructor as if they were attributes.
         $copy = (new ImmutablePointDTO(['x' => 1, 'y' => 2]))->with(['x' => 5]);
 
+        self::assertSame(['x', 'y'], array_keys($copy->toArray()));
         self::assertSame(5, $copy->x);
         self::assertSame(2, $copy->y);
+    }
+
+    public function test_with_carries_forward_an_uninitialised_property(): void
+    {
+        $partial = new ImmutablePointDTO(['x' => 1]); // y never initialised
+
+        $copy = $partial->with(['x' => 7]);
+
+        self::assertSame(7, $copy->x);
+
+        $this->expectException(\Error::class);
+        $copy->y;
+    }
+
+    public function test_with_on_an_immutable_dto_is_a_shallow_copy(): void
+    {
+        $tag = new TagDTO(['name' => 'shared']);
+
+        $copy = (new ImmutableHolderDTO(['tag' => $tag]))->with([]);
+
+        self::assertSame($tag, $copy->tag);
     }
 }
