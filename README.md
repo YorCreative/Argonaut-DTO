@@ -244,6 +244,32 @@ Available methods:
 | `values()` | `Collection` | Reindexes |
 | `isEmpty()` / `isNotEmpty()` | `bool` | |
 | `count()` | `int` | |
+| `validateAll(bool $throw = true)` | `true\|array` | Validates every item; errors keyed by collection key |
+| `isValidAll()` | `bool` | True when every item validates |
+
+### Validating a collection of DTOs
+
+```php
+$emails = EmailDTO::collection([
+    ['email' => 'ada@example.com'],
+    ['email' => 'not-an-email'],
+]);
+
+$emails->isValidAll();          // false
+$errors = $emails->validateAll(false);
+// [1 => ['email' => ['The email must be a valid email address.']]]
+
+$emails->validateAll();         // throws the failing item's ValidationException
+```
+
+Errors are keyed by the item's collection key, so string-keyed collections
+report which item failed. With `$throw = true` the first failing item's own
+`ValidationException` is raised — use `validateAll(false)` when you need to know
+which index failed.
+
+An item that is not an Argonaut DTO, or a DTO whose class declares no `rules()`,
+is a programming error and raises `LogicException` rather than being reported as
+invalid.
 
 These mirror the names and common calling conventions of
 `Illuminate\Support\Collection` so the API is familiar, but deliberately omit

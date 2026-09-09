@@ -7,9 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Targeting 1.1.0. Four further features are in progress and will land in this
-entry before it is tagged: `with()`, custom cast classes, key mapping, and
-bulk validation.
+Targeting 1.1.0. Three further features are in progress and will land in this
+entry before it is tagged: `with()`, custom cast classes, and key mapping.
 
 ### Added
 
@@ -26,6 +25,8 @@ bulk validation.
   includes a JSON array such as `[{"fullName":"Ada"}]` or `[1,2]`. An empty
   array (`[]`) is indistinguishable from an empty object (`{}`) after
   decoding, so both are accepted and produce an empty DTO.
+- `Collection::validateAll()` and `Collection::isValidAll()` for validating a
+  collection of DTOs in one call, with errors keyed by the item that failed.
 
 ### Changed (no behavior change)
 
@@ -69,8 +70,9 @@ lists alone will tell you nothing is wrong when it is. Concretely:
   method declared directly on the class.
 
 Grep your DTOs for `fromArray` and `fromJson`, and your `Collection`
-subclasses for `reduce`, `last`, `contains`, `pluck`, `groupBy`, `keyBy` —
-then check each hit's return type and staticness, not just its parameters.
+subclasses for `reduce`, `last`, `contains`, `pluck`, `groupBy`, `keyBy`,
+`validateAll`, `isValidAll` — then check each hit's return type and
+staticness, not just its parameters.
 
 `Collection` is now a generic class (`Collection<TValue>`). This is a
 static-analysis improvement with no runtime effect, but if you run PHPStan
