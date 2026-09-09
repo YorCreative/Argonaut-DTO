@@ -2,6 +2,7 @@
 
 namespace YorCreative\ArgonautDTO\Traits;
 
+use JsonException;
 use ReflectionAttribute;
 use ReflectionClass;
 use YorCreative\ArgonautDTO\Attributes\MapFrom;
@@ -101,5 +102,41 @@ trait HasKeyMapping
         }
 
         return $mapped;
+    }
+
+    /**
+     * The top-level output of toArray($depth), with each key renamed through
+     * the inverse of keyMaps() (property name => incoming key). Keys with no
+     * mapping keep their own name.
+     *
+     * This is top-level only: by the time toArray() runs, nested DTOs have
+     * already been flattened into plain arrays, so there is no nested $maps
+     * left to apply. Rewalking the object graph to work around that is out of
+     * scope by design.
+     *
+     * @return array<string, mixed>
+     */
+    public function toMappedArray(?int $depth = null): array
+    {
+        $inverse = array_flip($this->keyMaps());
+
+        $mapped = [];
+
+        foreach ($this->toArray($depth) as $key => $value) {
+            $mapped[$inverse[$key] ?? $key] = $value;
+        }
+
+        return $mapped;
+    }
+
+    /**
+     * toMappedArray(), JSON-encoded with the same JSON_THROW_ON_ERROR flag
+     * HasSerialization::toJson() encodes with.
+     *
+     * @throws JsonException when encoding fails.
+     */
+    public function toMappedJson(int $options = 0, ?int $depth = null): string
+    {
+        return json_encode($this->toMappedArray($depth), $options | JSON_THROW_ON_ERROR);
     }
 }

@@ -6,6 +6,7 @@ use PHPUnit\Framework\TestCase;
 use YorCreative\ArgonautDTO\Tests\Fixtures\AttributedMappedDTO;
 use YorCreative\ArgonautDTO\Tests\Fixtures\ConflictingMappedDTO;
 use YorCreative\ArgonautDTO\Tests\Fixtures\ImmutableMappedDTO;
+use YorCreative\ArgonautDTO\Tests\Fixtures\MappedCastDTO;
 use YorCreative\ArgonautDTO\Tests\Fixtures\MappedDTO;
 use YorCreative\ArgonautDTO\Tests\Fixtures\PrioritizedMappedDTO;
 
@@ -77,5 +78,56 @@ final class KeyMappingTest extends TestCase
 
         self::assertSame('Jane', $dto->firstName);
         self::assertSame('Jane Doe', $dto->fullName);
+    }
+
+    public function test_to_mapped_array_emits_the_incoming_key_names(): void
+    {
+        $dto = new MappedDTO(['first_name' => 'Jane', 'last_name' => 'Doe']);
+
+        self::assertSame(['first_name' => 'Jane', 'last_name' => 'Doe'], $dto->toMappedArray());
+    }
+
+    public function test_to_array_is_unchanged_by_mapping(): void
+    {
+        $dto = new MappedDTO(['first_name' => 'Jane', 'last_name' => 'Doe']);
+
+        self::assertSame(['firstName' => 'Jane', 'lastName' => 'Doe'], $dto->toArray());
+    }
+
+    public function test_unmapped_properties_keep_their_own_names(): void
+    {
+        $dto = new AttributedMappedDTO(['first_name' => 'Jane']);
+
+        self::assertSame(['first_name' => 'Jane'], $dto->toMappedArray());
+    }
+
+    public function test_to_mapped_json_emits_the_incoming_key_names(): void
+    {
+        $dto = new MappedDTO(['first_name' => 'Jane', 'last_name' => 'Doe']);
+
+        self::assertSame('{"first_name":"Jane","last_name":"Doe"}', $dto->toMappedJson());
+    }
+
+    public function test_mapped_output_works_on_immutable_dtos(): void
+    {
+        self::assertSame(['first_name' => 'Jane'], (new ImmutableMappedDTO(['first_name' => 'Jane']))->toMappedArray());
+    }
+
+    public function test_with_accepts_a_mapped_key_on_an_immutable_dto(): void
+    {
+        // Explicitly load-bearing: the immutable with() merges changes AFTER
+        // raw property-keyed state, so a mapped change can only win because
+        // mapInputKeys() rebuilds in input order and the later key wins.
+        $dto = new ImmutableMappedDTO(['first_name' => 'Jane']);
+
+        self::assertSame('Grace', $dto->with(['first_name' => 'Grace'])->firstName);
+    }
+
+    public function test_a_mapped_property_is_still_cast(): void
+    {
+        // The cast must be looked up by the POST-mapping property name.
+        $dto = new MappedCastDTO(['first_name' => 123]);
+
+        self::assertSame('123', $dto->firstName);
     }
 }
