@@ -76,6 +76,27 @@ final class FactoriesTest extends TestCase
 
         ProfileDTO::fromJson('"just a string"');
     }
+
+    public function test_from_json_rejects_a_non_empty_json_list_of_objects(): void
+    {
+        $this->expectException(JsonException::class);
+
+        ProfileDTO::fromJson('[{"fullName":"Ada"}]');
+    }
+
+    public function test_from_json_rejects_a_json_list_of_scalars(): void
+    {
+        $this->expectException(JsonException::class);
+
+        ProfileDTO::fromJson('[1,2]');
+    }
+
+    public function test_from_json_still_accepts_an_empty_json_object(): void
+    {
+        $dto = ProfileDTO::fromJson('{}');
+
+        self::assertInstanceOf(ProfileDTO::class, $dto);
+    }
 }
 
 final class ImmutableFactoryDTO extends ArgonautImmutableDTO

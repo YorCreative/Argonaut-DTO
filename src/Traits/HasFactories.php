@@ -24,7 +24,7 @@ trait HasFactories
     {
         $decoded = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
 
-        if (! is_array($decoded)) {
+        if (! is_array($decoded) || ($decoded !== [] && array_is_list($decoded))) {
             throw new \JsonException(sprintf(
                 '%s::fromJson() expects a JSON object, %s given.',
                 static::class,
