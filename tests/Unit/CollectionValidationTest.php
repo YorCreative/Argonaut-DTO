@@ -7,6 +7,7 @@ use PHPUnit\Framework\TestCase;
 use YorCreative\ArgonautDTO\Collection;
 use YorCreative\ArgonautDTO\Tests\Fixtures\EmailDTO;
 use YorCreative\ArgonautDTO\Tests\Fixtures\NoRulesDTO;
+use YorCreative\ArgonautDTO\Tests\Fixtures\PipedRulesDTO;
 use YorCreative\ArgonautDTO\ValidationException;
 
 final class CollectionValidationTest extends TestCase
@@ -72,19 +73,21 @@ final class CollectionValidationTest extends TestCase
 
     public function test_validate_all_throws_for_the_first_failing_item_in_order(): void
     {
+        // The two failing items fail DIFFERENT rules, so the thrown exception's
+        // error keys reveal which one threw. This test fails if the
+        // implementation captures the last failing item instead of the first.
         $collection = new Collection([
             new EmailDTO(['email' => 'ok@example.com']),
             new EmailDTO(['email' => 'first-bad']),
-            new EmailDTO(['email' => 'second-bad']),
+            new PipedRulesDTO(['count' => 'not-an-int']),
         ]);
 
         try {
             $collection->validateAll();
             self::fail('validateAll() should have thrown.');
         } catch (ValidationException $e) {
-            // The exception carries only the failing item's own errors, so assert
-            // against the shape rather than the offending value.
             self::assertArrayHasKey('email', $e->errors());
+            self::assertArrayNotHasKey('count', $e->errors());
         }
     }
 
