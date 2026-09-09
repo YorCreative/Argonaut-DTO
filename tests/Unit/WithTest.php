@@ -5,6 +5,9 @@ namespace YorCreative\ArgonautDTO\Tests\Unit;
 use PHPUnit\Framework\TestCase;
 use YorCreative\ArgonautDTO\ArgonautDTO;
 use YorCreative\ArgonautDTO\Tests\Fixtures\DerivedNameDTO;
+use YorCreative\ArgonautDTO\Tests\Fixtures\ImmutableAssembledDTO;
+use YorCreative\ArgonautDTO\Tests\Fixtures\ImmutableCastedHolderDTO;
+use YorCreative\ArgonautDTO\Tests\Fixtures\ImmutableCustomCastDTO;
 use YorCreative\ArgonautDTO\Tests\Fixtures\ImmutableHolderDTO;
 use YorCreative\ArgonautDTO\Tests\Fixtures\ImmutablePointDTO;
 use YorCreative\ArgonautDTO\Tests\Fixtures\ProfileDTO;
@@ -155,5 +158,46 @@ final class WithTest extends TestCase
         $copy = (new ImmutableHolderDTO(['tag' => $tag]))->with([]);
 
         self::assertSame($tag, $copy->tag);
+    }
+
+    public function test_with_does_not_reapply_a_custom_cast_to_an_unchanged_value(): void
+    {
+        // Regression test for the silent-corruption defect: a with() that
+        // rebuilds from full state would send 'amount' through HalvingCast a
+        // second time, turning 50 into 12.5 instead of leaving it at 25.
+        $dto = new ImmutableCustomCastDTO(['amount' => 50, 'label' => 'a']);
+        self::assertSame(25, $dto->amount);
+
+        $copy = $dto->with([]);
+
+        self::assertSame(25, $copy->amount);
+    }
+
+    public function test_with_does_not_reassemble_an_already_assembled_nested_dto(): void
+    {
+        $dto = new ImmutableAssembledDTO(['profile' => ['first' => 'Ada', 'last' => 'Lovelace']]);
+        self::assertSame('Ada Lovelace', $dto->profile->fullName);
+
+        $copy = $dto->with([]);
+
+        self::assertSame('Ada Lovelace', $copy->profile->fullName);
+    }
+
+    public function test_with_applies_a_custom_cast_to_a_changed_value(): void
+    {
+        $dto = new ImmutableCustomCastDTO(['amount' => 50, 'label' => 'a']);
+
+        $copy = $dto->with(['amount' => 10]);
+
+        self::assertSame(5, $copy->amount);
+    }
+
+    public function test_with_preserves_a_built_in_model_cast_instance(): void
+    {
+        $dto = new ImmutableCastedHolderDTO(['tag' => ['name' => 'shared']]);
+
+        $copy = $dto->with([]);
+
+        self::assertSame($dto->tag, $copy->tag);
     }
 }

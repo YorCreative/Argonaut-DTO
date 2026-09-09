@@ -2,6 +2,7 @@
 
 namespace YorCreative\ArgonautDTO;
 
+use ReflectionClass;
 use ReflectionProperty;
 use YorCreative\ArgonautDTO\Traits\HasCasting;
 use YorCreative\ArgonautDTO\Traits\HasFactories;
@@ -49,10 +50,16 @@ abstract class ArgonautImmutableDTO implements ArgonautDTOContract
     /**
      * Return a copy with the given attributes applied.
      *
-     * Unlike the mutable base class this rebuilds from full state, because
-     * readonly properties cannot be reassigned on a clone. That is safe here:
-     * initializeFromAttributes() writes through reflection and never dispatches
-     * setters, so there is no derived-property pass to clobber.
+     * Unlike the mutable base class this cannot be a clone-and-reassign,
+     * because readonly properties cannot be reassigned once set. Instead, an
+     * uninitialized instance is built through reflection, every unchanged
+     * property is copied across verbatim (already cast, not reprocessed), and
+     * only the given $attributes are routed through the normal
+     * initializeFromAttributes() -> castInputValue() path. This mirrors the
+     * mutable class's semantics — only the changes are re-applied — which
+     * matters because casting is not guaranteed idempotent: a custom cast is
+     * a transformation, not a guard, and a nestedAssembler expects its source
+     * shape, not an already-assembled DTO.
      *
      * This is a shallow copy: nested objects are shared with the original, not
      * duplicated. Mutating a nested DTO reached through the copy therefore
@@ -63,7 +70,25 @@ abstract class ArgonautImmutableDTO implements ArgonautDTOContract
      */
     public function with(array $attributes): static
     {
-        return new static(array_merge($this->rawAttributes(), $attributes));
+        // Only the CHANGED attributes go through casting. A full-state rebuild
+        // would re-run the engine over already-cast values: built-in casts
+        // survive on their identity guards, but a custom cast is a
+        // transformation and would apply twice, and a nestedAssembler would
+        // try to re-assemble an already-assembled DTO.
+        $changed = array_keys($this->mapInputKeys($attributes));
+
+        /** @var static $copy */
+        $copy = (new ReflectionClass(static::class))->newInstanceWithoutConstructor();
+
+        foreach ($this->rawAttributes() as $key => $value) {
+            if (! in_array($key, $changed, true)) {
+                (new ReflectionProperty($copy, $key))->setValue($copy, $value);
+            }
+        }
+
+        $copy->initializeFromAttributes($attributes);
+
+        return $copy;
     }
 
     /**
