@@ -70,6 +70,25 @@ $user->isValid();
 
 Unknown input keys are ignored. A setter named `set<FieldName>` takes precedence over direct property assignment. Declare `$prioritizedAttributes` when setters must run before the remaining input attributes.
 
+## Named constructors
+
+```php
+$profile = ProfileDTO::fromArray(['fullName' => 'Ada Lovelace']);
+$profile = ProfileDTO::fromJson('{"fullName":"Ada Lovelace"}');
+$tags    = TagDTO::collection([['name' => 'a'], ['name' => 'b']]); // Collection<TagDTO>
+```
+
+`fromArray()` and `fromJson()` are new in 1.1.0. `collection()` is not new — it
+has existed since 1.0.0 and is listed here because 1.1.0 makes its return type
+generic, so static analysis now narrows the elements.
+
+`fromJson()` throws `JsonException` on malformed JSON. It also throws
+`JsonException` when the JSON is valid but does not decode to an object — for
+example `'null'`, `'"a string"'`, or `'123'` — with a message naming the type it
+found instead, such as `ProfileDTO::fromJson() expects a JSON object, null
+given.` All three named constructors are available on both `ArgonautDTO` and
+`ArgonautImmutableDTO`.
+
 ## Nested casts
 
 ```php
@@ -103,6 +122,64 @@ protected array $casts = [
 
 Nested DTOs and backed enums serialize recursively; enums serialize to their backing values.
 
+## Attribute casting
+
+Casts can be declared with attributes instead of the `$casts` array:
+
+```php
+use YorCreative\ArgonautDTO\ArgonautDTO;
+use YorCreative\ArgonautDTO\Attributes\CastCollection;
+use YorCreative\ArgonautDTO\Attributes\CastEnum;
+use YorCreative\ArgonautDTO\Attributes\CastTo;
+use YorCreative\ArgonautDTO\Collection;
+
+class OrderDTO extends ArgonautDTO
+{
+    #[CastTo(CustomerDTO::class)]
+    public ?CustomerDTO $customer = null;
+
+    /** @var array<int, LineDTO> */
+    #[CastTo(LineDTO::class, many: true)]
+    public array $lines = [];
+
+    /** @var Collection<LineDTO> */
+    #[CastCollection(LineDTO::class)]
+    public ?Collection $lineCollection = null;
+
+    #[CastEnum(Status::class)]
+    public ?Status $status = null;
+}
+```
+
+Each attribute is equivalent to the `$casts` entry it replaces:
+
+| Attribute | Equivalent `$casts` value |
+| --- | --- |
+| `#[CastTo(LineDTO::class)]` | `LineDTO::class` |
+| `#[CastTo(LineDTO::class, many: true)]` | `[LineDTO::class]` |
+| `#[CastCollection(LineDTO::class)]` | `'collection:'.LineDTO::class` |
+| `#[CastEnum(Status::class)]` | `Status::class` |
+
+Attributes and the `$casts` array can coexist. When both describe the same
+property, **the `$casts` array wins**. Attributes are fixed at the point of
+property declaration, so a subclass cannot change the attribute on a property it
+inherits without redeclaring that property — `$casts` is its lever short of
+redeclaration, and this rule keeps that override working:
+
+```php
+class ParentDTO extends ArgonautDTO
+{
+    #[CastTo(TagDTO::class)]
+    public mixed $thing = null;
+}
+
+class ChildDTO extends ParentDTO
+{
+    // Overrides the inherited attribute.
+    protected array $casts = ['thing' => 'string'];
+}
+```
+
 ## Serialization depth
 
 `toArray()`, `toJson()`, and `jsonSerialize()` walk the whole DTO graph:
@@ -126,6 +203,50 @@ and serializes normally.
 of DTOs adds a level of its own, a graph well inside `$depth` can still exceed the encoder's 512
 levels; `toJson()` raises the encoder limit to fit whatever the walk produced. Note that
 `json_decode()` has the same 512 default, so decoding very deep payloads needs an explicit depth.
+
+## Collection
+
+`Collection` is a small, dependency-free collection returned by
+`collection:` casts and by `collection()`. It implements `ArrayAccess`,
+`Countable`, `IteratorAggregate` and `JsonSerializable`.
+
+It is generic over its value type, so static analysis narrows elements:
+
+```php
+/** @var Collection<TagDTO> */
+public Collection $tags;
+
+$this->tags->first()->name; // PHPStan resolves this to TagDTO::$name
+```
+
+Available methods:
+
+| Method | Returns | Notes |
+| --- | --- | --- |
+| `all()` | `array` | Underlying items, keys preserved |
+| `map(callable)` | `Collection` | Preserves keys |
+| `filter(?callable)` | `Collection` | Callback receives value and key |
+| `first(mixed $default = null)` | `TValue\|null` | |
+| `last(mixed $default = null)` | `TValue\|null` | |
+| `reduce(callable, mixed $initial = null)` | `mixed` | Callback receives carry, value, key |
+| `contains(mixed)` | `bool` | A value compared strictly, or a predicate |
+| `pluck(string $value, ?string $key = null)` | `Collection` | Reads array keys, `ArrayAccess` offsets, or object properties |
+| `groupBy(callable)` | `Collection` | A `Collection` of `Collection`s |
+| `keyBy(callable)` | `Collection` | Later duplicates win |
+| `values()` | `Collection` | Reindexes |
+| `isEmpty()` / `isNotEmpty()` | `bool` | |
+| `count()` | `int` | |
+
+These mirror the names and common calling conventions of
+`Illuminate\Support\Collection` so the API is familiar, but deliberately omit
+Laravel's operator overloads — `contains()` takes a value or a predicate, not
+`($key, $operator, $value)`.
+
+One caveat worth knowing: `contains()` decides between "value" and "predicate" by
+testing `instanceof Closure`, so a collection whose *items are themselves
+closures* cannot be searched by value — the argument is always invoked as a
+predicate. `Illuminate\Support\Collection` has the same limitation. Use
+`in_array($needle, $collection->all(), true)` if you need that.
 
 ## Immutable DTOs
 
