@@ -130,4 +130,14 @@ final class KeyMappingTest extends TestCase
 
         self::assertSame('123', $dto->firstName);
     }
+
+    public function test_to_mapped_json_reports_encoding_failures_like_to_json(): void
+    {
+        $dto = new MappedDTO(['first_name' => "bad\xB1utf"]);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('JSON error: Malformed UTF-8 characters');
+
+        $dto->toMappedJson();
+    }
 }

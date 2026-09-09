@@ -2,9 +2,9 @@
 
 namespace YorCreative\ArgonautDTO\Traits;
 
-use JsonException;
 use ReflectionAttribute;
 use ReflectionClass;
+use RuntimeException;
 use YorCreative\ArgonautDTO\Attributes\MapFrom;
 
 trait HasKeyMapping
@@ -130,13 +130,15 @@ trait HasKeyMapping
     }
 
     /**
-     * toMappedArray(), JSON-encoded with the same JSON_THROW_ON_ERROR flag
-     * HasSerialization::toJson() encodes with.
+     * toMappedArray(), JSON-encoded through the same encodeJson() helper
+     * HasSerialization::toJson() uses, so both encode with identical
+     * semantics (JSON_THROW_ON_ERROR, the depth-retry, and the
+     * RuntimeException wrapping).
      *
-     * @throws JsonException when encoding fails.
+     * @throws RuntimeException when encoding fails.
      */
     public function toMappedJson(int $options = 0, ?int $depth = null): string
     {
-        return json_encode($this->toMappedArray($depth), $options | JSON_THROW_ON_ERROR);
+        return $this->encodeJson($this->toMappedArray($depth), $options);
     }
 }

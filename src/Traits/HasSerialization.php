@@ -118,8 +118,19 @@ trait HasSerialization
      */
     public function toJson(int $options = 0, ?int $depth = null): string
     {
-        $data = $this->toArray($depth);
+        return $this->encodeJson($this->toArray($depth), $options);
+    }
 
+    /**
+     * Shared by toJson() and HasKeyMapping::toMappedJson() so both encode
+     * with identical semantics and can never silently diverge.
+     *
+     * @param  array<string, mixed>  $data
+     *
+     * @throws RuntimeException when encoding fails.
+     */
+    protected function encodeJson(array $data, int $options): string
+    {
         try {
             try {
                 return json_encode($data, $options | JSON_THROW_ON_ERROR);
