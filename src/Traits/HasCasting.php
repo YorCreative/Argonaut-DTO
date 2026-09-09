@@ -30,8 +30,10 @@ trait HasCasting
     protected static array $attributeCastMap = [];
 
     /**
-     * One shared instance per cast class. Casts are required to be stateless,
-     * so sharing is safe and avoids constructing one per hydration.
+     * One shared instance per cast class, cached per using class (this static
+     * is per-trait-user, like $attributeCastMap above — not process-wide).
+     * Casts are required to be stateless, so sharing is safe and avoids
+     * constructing one per hydration.
      *
      * @var array<class-string, CastsArgonautAttribute>
      */
@@ -142,11 +144,25 @@ trait HasCasting
             return $this->castScalar($cast, $value);
         }
 
+        // A backed enum that also implements CastsArgonautAttribute is deliberately
+        // claimed here, before the custom-cast branch below: the custom-cast branch
+        // would fatal trying to `new` an enum, since enum cases cannot be constructed.
         if (enum_exists($cast) && is_subclass_of($cast, \BackedEnum::class)) {
             return $this->castToEnum($cast, $value);
         }
 
         if (str_starts_with($cast, Collection::class.':') || str_starts_with($cast, 'collection:')) {
+            $target = explode(':', $cast, 2)[1];
+
+            if (is_subclass_of($target, CastsArgonautAttribute::class)) {
+                $customCast = $this->customCast($target);
+
+                return new Collection(array_map(
+                    fn (mixed $item): mixed => $customCast->get($key, $item),
+                    $this->normalizeIterableValue($value, 'collection'),
+                ));
+            }
+
             return $this->castToCollectionModel($cast, $value);
         }
 
@@ -181,7 +197,9 @@ trait HasCasting
         }
 
         if (is_string($cast) && (str_starts_with($cast, Collection::class.':') || str_starts_with($cast, 'collection:'))) {
-            return [explode(':', $cast, 2)[1], true];
+            $target = explode(':', $cast, 2)[1];
+
+            return [is_subclass_of($target, CastsArgonautAttribute::class) ? null : $target, true];
         }
 
         return [

@@ -5,6 +5,7 @@ namespace YorCreative\ArgonautDTO\Tests\Unit;
 use PHPUnit\Framework\TestCase;
 use YorCreative\ArgonautDTO\Attributes\CastWith;
 use YorCreative\ArgonautDTO\CastsArgonautAttribute;
+use YorCreative\ArgonautDTO\Collection;
 use YorCreative\ArgonautDTO\Tests\Fixtures\AssembledCustomCastDTO;
 use YorCreative\ArgonautDTO\Tests\Fixtures\AttributedCustomCastDTO;
 use YorCreative\ArgonautDTO\Tests\Fixtures\ConflictingCustomCastDTO;
@@ -98,5 +99,21 @@ final class CustomCastTest extends TestCase
     public function test_an_array_valued_custom_cast_is_not_sent_to_the_assembler(): void
     {
         self::assertSame([['x' => 'ada']], (new AssembledCustomCastDTO(['many' => [['x' => 'ada']]]))->many);
+    }
+
+    public function test_a_collection_valued_custom_cast_applies_the_cast(): void
+    {
+        $dto = new AssembledCustomCastDTO(['collection' => ['ada', 'grace']]);
+
+        self::assertInstanceOf(Collection::class, $dto->collection);
+        self::assertSame(['ADA', 'GRACE'], $dto->collection->all());
+    }
+
+    public function test_a_collection_valued_custom_cast_is_not_sent_to_the_assembler(): void
+    {
+        // Array payload required, same reason as the other assembler guards.
+        $dto = new AssembledCustomCastDTO(['collection' => [['x' => 'ada']]]);
+
+        self::assertSame([['x' => 'ada']], $dto->collection->all());
     }
 }

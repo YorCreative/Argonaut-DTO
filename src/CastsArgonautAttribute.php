@@ -9,8 +9,9 @@ namespace YorCreative\ArgonautDTO;
  * built-in cast applies, while this PERFORMS a conversion the library does not
  * know how to do.
  *
- * Implementations MUST be stateless. One instance per cast class is created and
- * shared across every DTO in the process.
+ * Implementations MUST be stateless and constructible with no arguments.
+ * Instances are cached and reused per cast class, so the same instance may
+ * serve many DTOs; a cast that keeps state between calls will leak it.
  *
  * A cast never receives null: setAttribute() short-circuits null before casting.
  */
