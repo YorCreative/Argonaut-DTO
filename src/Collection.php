@@ -133,6 +133,7 @@ class Collection implements ArrayAccess, Countable, IteratorAggregate, JsonSeria
     /**
      * @param  string  $value  key or property to extract from each item
      * @param  string|null  $key  key or property to index the result by
+     * @return static<mixed>
      */
     public function pluck(string $value, ?string $key = null): static
     {
