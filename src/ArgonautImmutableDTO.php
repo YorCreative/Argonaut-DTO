@@ -5,6 +5,7 @@ namespace YorCreative\ArgonautDTO;
 use ReflectionProperty;
 use YorCreative\ArgonautDTO\Traits\HasCasting;
 use YorCreative\ArgonautDTO\Traits\HasFactories;
+use YorCreative\ArgonautDTO\Traits\HasKeyMapping;
 use YorCreative\ArgonautDTO\Traits\HasSerialization;
 use YorCreative\ArgonautDTO\Traits\HasValidation;
 
@@ -12,6 +13,7 @@ abstract class ArgonautImmutableDTO implements ArgonautDTOContract
 {
     use HasCasting;
     use HasFactories;
+    use HasKeyMapping;
     use HasSerialization;
     use HasValidation;
 
@@ -24,6 +26,8 @@ abstract class ArgonautImmutableDTO implements ArgonautDTOContract
     /** @param array<string, mixed> $attributes */
     protected function initializeFromAttributes(array $attributes): void
     {
+        $attributes = $this->mapInputKeys($attributes);
+
         foreach ($attributes as $key => $value) {
             if (property_exists($this, (string) $key) && ! $this->isInternalProperty((string) $key)) {
                 $castValue = $value === null ? null : $this->castInputValue((string) $key, $value);

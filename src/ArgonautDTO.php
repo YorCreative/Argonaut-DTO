@@ -4,6 +4,7 @@ namespace YorCreative\ArgonautDTO;
 
 use YorCreative\ArgonautDTO\Traits\HasCasting;
 use YorCreative\ArgonautDTO\Traits\HasFactories;
+use YorCreative\ArgonautDTO\Traits\HasKeyMapping;
 use YorCreative\ArgonautDTO\Traits\HasSerialization;
 use YorCreative\ArgonautDTO\Traits\HasValidation;
 
@@ -11,6 +12,7 @@ class ArgonautDTO implements ArgonautDTOContract
 {
     use HasCasting;
     use HasFactories;
+    use HasKeyMapping;
     use HasSerialization;
     use HasValidation;
 
@@ -29,6 +31,8 @@ class ArgonautDTO implements ArgonautDTOContract
     /** @param array<string, mixed> $attributes */
     public function setAttributes(array $attributes): static
     {
+        $attributes = $this->mapInputKeys($attributes);
+
         foreach ($this->prioritizedAttributes as $key) {
             if (array_key_exists($key, $attributes)) {
                 $this->setAttribute($key, $attributes[$key]);

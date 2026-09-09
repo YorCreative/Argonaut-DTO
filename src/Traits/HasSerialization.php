@@ -34,7 +34,7 @@ trait HasSerialization
     /** @return list<string> */
     protected function getExcludedSerializationProperties(): array
     {
-        return ['prioritizedAttributes', 'casts', 'nestedAssemblers'];
+        return ['prioritizedAttributes', 'casts', 'nestedAssemblers', 'maps'];
     }
 
     protected function castOutputValue(mixed $value, int $depth): mixed
