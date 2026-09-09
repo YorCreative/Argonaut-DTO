@@ -5,7 +5,11 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.1.0] - 2026-09-08
+## [Unreleased]
+
+Targeting 1.1.0. Four further features are in progress and will land in this
+entry before it is tagged: `with()`, custom cast classes, key mapping, and
+bulk validation.
 
 ### Added
 
@@ -53,5 +57,5 @@ subclasses for `reduce`, `last`, `contains`, `pluck`, `groupBy`, `keyBy`.
   depth-limited serialization, circular-reference detection, and
   convention-based validation.
 
-[1.1.0]: https://github.com/YorCreative/Argonaut-DTO/compare/v1.0.0...v1.1.0
+[Unreleased]: https://github.com/YorCreative/Argonaut-DTO/compare/v1.0.0...HEAD
 [1.0.0]: https://github.com/YorCreative/Argonaut-DTO/releases/tag/v1.0.0
