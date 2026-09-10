@@ -61,9 +61,11 @@ the problem at the point it is detectable:
 - Declaring `#[MapFrom]` for the same incoming key on two properties throws
   `LogicException`. Previously whichever property reflection reached last won
   and the other was never populated.
-- `setAttribute()` now applies key mapping, like every other input path. It
-  previously assigned the raw key, so passing a mapped key matched no property
-  and the call silently did nothing. It still accepts the property name.
+- `setMappedAttribute()` is the single-attribute entry point for an incoming
+  alias: it resolves the key through `$maps`/`#[MapFrom]` and hands the property
+  name to `setAttribute()`. `setAttribute()` itself keeps its 1.0.0 contract and
+  takes property names only, so an existing override needs no change and is
+  still called exactly once per assignment, under the name it declared.
 - `Collection::contains()` now treats any callable except a string as a
   predicate — `[$object, 'method']` and `__invoke` objects included. A string
   remains a value, so a collection of strings stays searchable. Predicates are
@@ -95,9 +97,19 @@ the problem at the point it is detectable:
 - `Collection::pluck()` reads a property published through `__isset()`/`__get()`
   again; the accessibility guard added in this release ran before the magic
   accessors could answer.
-- An overridden `setAttribute()` is called for every input path again —
-  constructor, `setAttributes()`, `merge()` and `with()` — after bulk
-  assignment was briefly routed around it.
+- An overridden `setAttribute()` is called for every input path —
+  constructor, `setAttributes()`, `merge()` and `with()` — and always receives
+  the canonical property name. Bulk input is mapped once, before dispatch, so
+  nothing an override does from inside an assignment can be mistaken for part
+  of the surrounding operation.
+- `ArgonautImmutableDTO` can be subclassed when a parent declares `readonly`
+  properties. Initialization went through `ReflectionProperty::setValue()`,
+  which carries the caller's scope; PHP 8.3 permits a readonly property to be
+  initialized only from the scope that declares it, so this raised
+  `Cannot initialize readonly property ... from scope ...` there while working
+  on 8.4+, which relaxed the rule. Assignment is now bound to the declaring
+  class, which also resolves to the correct slot when a parent and a child both
+  declare a private property of the same name.
 
 ### Changed (no behavior change)
 
@@ -162,6 +174,10 @@ wrong when it is. Concretely:
   not assume `contains`, `pluck`, `reduce` or `groupBy` are safe just because
   their parameter lists happen to match — check the return type on every
   hit, not just `last`/`keyBy`.
+- `setMappedAttribute()` is a new `public` method on `ArgonautDTO`, declared
+  as `setMappedAttribute(string $key, mixed $value): static`. A pre-existing
+  method of that name is a collision on the same terms as the others above —
+  check the return type and staticness, not only the parameters.
 - `$maps` is a new `protected array` property on both base classes (see the
   **Changed** entry above) — check for a pre-existing `$maps` property the
   same way you would check for a method collision, since a type mismatch is a
@@ -175,8 +191,9 @@ wrong when it is. Concretely:
   trait method is checked against the inherited signature identically to a
   method declared directly on the class.
 
-Grep your DTOs for `fromArray`, `fromJson`, `with`, `toMappedArray`,
-`toMappedJson`, `maps`, `encodeJson`, `keyMaps`, and `mapInputKeys`, and your
+Grep your DTOs for `fromArray`, `fromJson`, `with`, `setMappedAttribute`,
+`toMappedArray`, `toMappedJson`, `maps`, `encodeJson`, `keyMaps`, and
+`mapInputKeys`, and your
 `Collection` subclasses for `reduce`, `last`, `contains`, `pluck`, `groupBy`,
 `keyBy`, `validateAll`, `isValidAll` — then check each hit's return type and
 staticness, not just its parameters.

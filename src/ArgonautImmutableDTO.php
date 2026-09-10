@@ -2,6 +2,7 @@
 
 namespace YorCreative\ArgonautDTO;
 
+use Closure;
 use ReflectionClass;
 use ReflectionProperty;
 use YorCreative\ArgonautDTO\Traits\HasCasting;
@@ -44,7 +45,32 @@ abstract class ArgonautImmutableDTO implements ArgonautDTOContract
 
     protected function initializeReadonlyProperty(string $key, mixed $value): void
     {
-        (new ReflectionProperty($this, $key))->setValue($this, $value);
+        self::assignInDeclaringScope($this, new ReflectionProperty($this, $key), $value);
+    }
+
+    /**
+     * Assign a property on $target from the scope that declares it.
+     *
+     * PHP 8.3 only permits a readonly property to be initialized from its
+     * declaring scope, and both ReflectionProperty::setValue() and a property
+     * object obtained from a subclass carry the wrong one -- so initializing a
+     * property a PARENT declares, on an instance of a subclass, failed there
+     * while working on 8.4+, which relaxed the rule. Binding to the declaring
+     * class satisfies 8.3 and changes nothing later. It also resolves to the
+     * correct slot when a parent and a child both declare a private property
+     * of the same name.
+     */
+    private static function assignInDeclaringScope(object $target, ReflectionProperty $property, mixed $value): void
+    {
+        $assign = Closure::bind(
+            function (string $name, mixed $assigned): void {
+                $this->{$name} = $assigned;
+            },
+            $target,
+            $property->getDeclaringClass()->getName(),
+        );
+
+        $assign($property->getName(), $value);
     }
 
     /**
@@ -103,7 +129,7 @@ abstract class ArgonautImmutableDTO implements ArgonautDTOContract
                 continue;
             }
 
-            $property->setValue($copy, $property->getValue($this));
+            self::assignInDeclaringScope($copy, $property, $property->getValue($this));
         }
 
         $copy->initializeFromAttributes($attributes);
@@ -130,11 +156,15 @@ abstract class ArgonautImmutableDTO implements ArgonautDTOContract
 
         for ($class = new ReflectionClass($this); $class !== false; $class = $class->getParentClass()) {
             foreach ($class->getProperties() as $property) {
-                // Identified by declaring class as well as name: a private
-                // property in a parent and one of the same name in a child are
-                // two distinct slots, and de-duplicating on the name alone
-                // dropped the parent's.
-                $id = $property->getDeclaringClass()->getName().'::'.$property->getName();
+                // Only a private property gets per-class identity. Two private
+                // properties of the same name in a parent and a child really are
+                // distinct slots, and de-duplicating on the name alone dropped
+                // the parent's. A redeclared public or protected property is the
+                // opposite case: parent and child share one slot, so treating
+                // them as two writes it twice -- fatal when it is readonly.
+                $id = $property->isPrivate()
+                    ? $property->getDeclaringClass()->getName().'::'.$property->getName()
+                    : $property->getName();
 
                 if ($property->isStatic() || isset($seen[$id])) {
                     continue;

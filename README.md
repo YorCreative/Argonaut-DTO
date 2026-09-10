@@ -386,9 +386,13 @@ $dto->name; // 'Ada' — 'name_field' is no longer a recognized mapping, so it
 
 Key mapping runs before anything else that processes input — before the
 `$prioritizedAttributes` pass and before casting. That applies to every input
-path: the constructor, `setAttributes()`, `merge()`, `with()`, and the
-single-key `setAttribute()`, which accepts either the incoming key or the
-property name. A `$casts` entry (or cast attribute) for a mapped property is
+path that takes incoming keys: the constructor, `setAttributes()`, `merge()`,
+`with()`, and the single-key `setMappedAttribute()`. `setAttribute()` is the
+assignment seam underneath them and takes **property names only** — it does not
+map, so an override sees each assignment once, under the name it declared, and
+may safely reach for other attributes from inside it (use
+`setMappedAttribute()` there if you want to name one by its alias). A `$casts`
+entry (or cast attribute) for a mapped property is
 therefore keyed by the **property name**, not the incoming key:
 
 ```php

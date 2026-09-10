@@ -13,11 +13,16 @@ class RecordingSetterDTO extends ArgonautDTO
     protected array $maps = [
         'wire' => 'count',
         'label_alias' => 'label',
+        // 'label' is itself an alias for another property, so a key that is
+        // mapped a second time lands in $shadow where a test can see it.
+        'label' => 'shadow',
     ];
 
     public int $count = 0;
 
     public string $label = '';
+
+    public string $shadow = '';
 
     /** @var list<string> */
     public array $seenKeys = [];

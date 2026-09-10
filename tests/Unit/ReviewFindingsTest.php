@@ -75,17 +75,36 @@ class ReviewFindingsTest extends TestCase
     // setAttribute() honours key mapping
     // -----------------------------------------------------------------
 
-    public function test_set_attribute_applies_key_mapping(): void
+    public function test_set_mapped_attribute_applies_key_mapping(): void
     {
+        // setAttribute() takes property names; setMappedAttribute() is the
+        // single-attribute entry point that accepts an incoming alias.
         $viaConstructor = new MappedSetterDTO(['first_name' => 'Ada']);
-        $viaSetter = (new MappedSetterDTO([]))->setAttribute('first_name', 'Ada');
+        $viaSetter = (new MappedSetterDTO([]))->setMappedAttribute('first_name', 'Ada');
 
         $this->assertSame('Ada', $viaConstructor->firstName);
         $this->assertSame(
             'Ada',
             $viaSetter->firstName,
-            'setAttribute() must map incoming keys like every other input path.'
+            'setMappedAttribute() must resolve an incoming alias to its property.'
         );
+    }
+
+    public function test_set_attribute_takes_property_names_only(): void
+    {
+        // The v1.0 contract, kept: an alias is not a property name, so it
+        // assigns nothing rather than silently guessing.
+        $dto = (new MappedSetterDTO([]))->setAttribute('first_name', 'Ada');
+
+        $this->assertSame('', $dto->firstName);
+        $this->assertSame('Ada', (new MappedSetterDTO([]))->setAttribute('firstName', 'Ada')->firstName);
+    }
+
+    public function test_set_mapped_attribute_passes_an_unmapped_key_through(): void
+    {
+        $dto = (new MappedSetterDTO([]))->setMappedAttribute('firstName', 'Ada');
+
+        $this->assertSame('Ada', $dto->firstName);
     }
 
     public function test_set_attribute_still_accepts_the_property_name(): void

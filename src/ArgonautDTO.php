@@ -2,7 +2,6 @@
 
 namespace YorCreative\ArgonautDTO;
 
-use WeakMap;
 use YorCreative\ArgonautDTO\Traits\HasCasting;
 use YorCreative\ArgonautDTO\Traits\HasFactories;
 use YorCreative\ArgonautDTO\Traits\HasKeyMapping;
@@ -11,18 +10,6 @@ use YorCreative\ArgonautDTO\Traits\HasValidation;
 
 class ArgonautDTO implements ArgonautDTOContract
 {
-    /**
-     * Objects currently inside setAttributes().
-     *
-     * Static, and therefore invisible to get_object_vars(), so it neither
-     * appears in serialized output nor reserves another property name on
-     * subclasses. A WeakMap keeps no object alive, matching the guard
-     * HasSerialization already uses.
-     *
-     * @var WeakMap<object, true>|null
-     */
-    private static ?WeakMap $bulkAssignmentGuard = null;
-
     use HasCasting;
     use HasFactories;
     use HasKeyMapping;
@@ -50,66 +37,37 @@ class ArgonautDTO implements ArgonautDTOContract
         // an invalid losing value is never assigned to a typed property.
         $attributes = $this->mapInputKeys($attributes);
 
-        // setAttribute() is still the assignment seam, so a subclass override
-        // runs for bulk input too, and it receives canonical property names --
-        // an override that normalises per property cannot do so if it is handed
-        // an alias. The guard below stops it mapping a second time, which would
-        // walk a chained map (a -> b, b -> c) an extra hop.
-        $guard = self::$bulkAssignmentGuard ??= new WeakMap;
-        $alreadyGuarded = isset($guard[$this]);
-        $guard[$this] = true;
+        // Dispatch is then plain: setAttribute() takes property names and never
+        // maps, so an override runs once per assignment, under the name it
+        // declared, and nothing it does from inside can be mistaken for part of
+        // the surrounding bulk operation.
+        foreach ($this->prioritizedAttributes as $key) {
+            if (array_key_exists($key, $attributes)) {
+                $this->setAttribute((string) $key, $attributes[$key]);
+                unset($attributes[$key]);
+            }
+        }
 
-        try {
-            foreach ($this->prioritizedAttributes as $key) {
-                if (array_key_exists($key, $attributes)) {
-                    $this->setAttribute((string) $key, $attributes[$key]);
-                    unset($attributes[$key]);
-                }
-            }
-
-            foreach ($attributes as $key => $value) {
-                $this->setAttribute((string) $key, $value);
-            }
-        } finally {
-            // A nested setAttributes() -- one reached from inside an override --
-            // must leave the outer call's guard standing.
-            if (! $alreadyGuarded) {
-                unset($guard[$this]);
-            }
+        foreach ($attributes as $key => $value) {
+            $this->setAttribute((string) $key, $value);
         }
 
         return $this;
     }
 
     /**
-     * Set one attribute, applying key mapping first.
+     * Set one attribute by its PROPERTY NAME.
      *
-     * Every other input path -- the constructor, setAttributes(), merge() --
-     * maps incoming keys before assigning, and this is an input path too. It
-     * used to assign the raw key, so a mapped key silently matched no property
-     * and the call did nothing.
+     * Key mapping is not applied here. This is the assignment seam every input
+     * path funnels through -- the constructor, setAttributes(), merge() and
+     * with() all map their input first and then dispatch canonical property
+     * names to it -- so a subclass override sees each assignment exactly once,
+     * under the name it declared, and may safely reach for other attributes
+     * from inside it.
+     *
+     * Use setMappedAttribute() to assign by an incoming alias.
      */
     public function setAttribute(string $key, mixed $value): static
-    {
-        // Inside setAttributes() the key is already canonical: mapping ran once
-        // over the whole array, which is where collisions were settled too.
-        if (! $this->insideBulkAssignment()) {
-            $maps = $this->keyMaps();
-            $key = (string) ($maps[$key] ?? $key);
-        }
-
-        return $this->assignAttribute($key, $value);
-    }
-
-    private function insideBulkAssignment(): bool
-    {
-        return self::$bulkAssignmentGuard !== null && isset(self::$bulkAssignmentGuard[$this]);
-    }
-
-    /**
-     * Assign an attribute by property name, with no key mapping applied.
-     */
-    private function assignAttribute(string $key, mixed $value): static
     {
         $class = static::class;
         static::$setterMap[$class] ??= [];
@@ -129,6 +87,25 @@ class ArgonautDTO implements ArgonautDTOContract
         }
 
         return $this;
+    }
+
+    /**
+     * Set one attribute by an incoming key, applying key mapping first.
+     *
+     * The single-attribute counterpart to setAttributes(): the key is resolved
+     * through $maps and #[MapFrom] and then handed to setAttribute() under its
+     * property name. A key with no mapping is passed through unchanged.
+     *
+     * This is NOT interchangeable with setAttribute(). A property name can
+     * itself be an incoming alias -- with $maps = ['a' => 'b', 'b' => 'c'],
+     * property `b` is also the alias for `c`, so setMappedAttribute('b')
+     * assigns `c`, not `b`. Call setAttribute() when you mean the property.
+     */
+    public function setMappedAttribute(string $key, mixed $value): static
+    {
+        $maps = $this->keyMaps();
+
+        return $this->setAttribute((string) ($maps[$key] ?? $key), $value);
     }
 
     /** @param array<string, mixed> $attributes */

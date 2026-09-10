@@ -78,18 +78,18 @@ class ReviewFindingsRoundThreeTest extends TestCase
         $dto = new RecordingSetterDTO(['label_alias' => '  padded  ']);
 
         $this->assertSame('padded', $dto->label, 'The override normalised by property name.');
+        $this->assertSame('', $dto->shadow, 'A second mapping pass would land the value here.');
     }
 
-    public function test_a_direct_set_attribute_call_still_accepts_an_alias(): void
+    public function test_a_direct_alias_assignment_goes_through_set_mapped_attribute(): void
     {
-        // A direct call is the caller naming the key themselves, and the
-        // override is the outermost frame, so it sees the key as passed --
-        // there is no earlier hook that could canonicalise it first. The
-        // assignment still resolves through the map.
-        $dto = (new RecordingSetterDTO([]))->setAttribute('wire', 3);
+        // setMappedAttribute() resolves the alias and then hands the property
+        // name to setAttribute(), so the override sees the canonical name here
+        // too -- exactly as it does for bulk input.
+        $dto = (new RecordingSetterDTO([]))->setMappedAttribute('wire', 3);
 
-        $this->assertSame(3, $dto->count, 'The alias still resolves to the property.');
-        $this->assertSame(['wire'], $dto->seenKeys);
+        $this->assertSame(3, $dto->count);
+        $this->assertSame(['count'], $dto->seenKeys);
     }
 
     public function test_chained_maps_still_take_exactly_one_hop(): void
