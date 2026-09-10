@@ -560,6 +560,46 @@ levels; `toJson()` raises the encoder limit to fit whatever the walk produced. N
 `collection:` casts and by `collection()`. It implements `ArrayAccess`,
 `Countable`, `IteratorAggregate` and `JsonSerializable`.
 
+### Using a different collection
+
+`collection:` casts produce whatever class `collectionClass()` returns, so a
+DTO can use a framework's collection, or your own, instead:
+
+```php
+use Illuminate\Support\Collection;
+
+final class OrderDTO extends ArgonautDTO
+{
+    protected array $casts = ['lines' => 'collection:'.LineDTO::class];
+
+    /** @var Collection<int, LineDTO> */
+    public Collection $lines;
+
+    protected function collectionClass(): string
+    {
+        return Collection::class;
+    }
+}
+```
+
+The package gains no dependency from this — it instantiates the class string
+you return and nothing more. The contract is:
+
+| Requirement | Why |
+|---|---|
+| `__construct(array $items)` | how the cast builds it |
+| `map(callable): self` | applied per item by `collection:<DTO>` casts |
+| `Traversable` | so `toArray()` can walk it back into a nested array |
+
+`Illuminate\Support\Collection` satisfies all three. Override
+`newCollection(array $items)` instead if construction needs more than
+`new $class($items)`.
+
+`collection()` is unaffected and always returns this package's `Collection`.
+It is a static factory, so it has no instance to ask, and `collectionClass()`
+is deliberately an instance method so two DTOs of different classes can differ.
+Build the collection yourself if you need another type there.
+
 It is generic over its value type, so static analysis narrows elements:
 
 ```php

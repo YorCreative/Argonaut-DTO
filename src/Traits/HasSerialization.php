@@ -4,6 +4,7 @@ namespace YorCreative\ArgonautDTO\Traits;
 
 use JsonException;
 use RuntimeException;
+use Traversable;
 use WeakMap;
 use YorCreative\ArgonautDTO\ArgonautDTOContract;
 use YorCreative\ArgonautDTO\CircularReferenceException;
@@ -47,7 +48,12 @@ trait HasSerialization
             return $value->toArray($depth);
         }
 
-        if ($value instanceof Collection || is_array($value)) {
+        // Any traversable value is walked, not just this package's own
+        // Collection: a DTO whose collectionClass() names another
+        // implementation would otherwise emit it here as a raw object instead
+        // of a nested array. DTOs are already handled above, so this only
+        // reaches plain iterables.
+        if ($value instanceof Collection || $value instanceof Traversable || is_array($value)) {
             $output = [];
 
             foreach ($value as $key => $item) {

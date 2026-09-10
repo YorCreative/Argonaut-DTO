@@ -7,8 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Targeting 1.1.0. The scope for this release is complete and it is awaiting
-release.
+Targeting 1.2.0.
+
+### Added
+
+- The collection class a DTO's `collection:` casts produce is now selectable.
+  Override `collectionClass()` to return any implementation:
+
+  ```php
+  protected function collectionClass(): string
+  {
+      return \Illuminate\Support\Collection::class;
+  }
+  ```
+
+  The package names no collection but its own and gains no dependency from
+  this — the returned class string is instantiated directly. The contract is
+  a constructor taking an array, a `map(callable)` method, and `Traversable`
+  so the value can be walked again on serialization. `newCollection()` is
+  available to override instead if construction needs more than `new $class`.
+
+  The static `collection()` factory is unaffected and still returns this
+  package's `Collection`: it has no instance to ask, and `collectionClass()` is
+  an instance method by design so two DTO classes can differ.
+
+### Fixed
+
+- `toArray()` and `toJson()` walk any traversable value, not only this
+  package's own `Collection`. A collection from elsewhere was emitted as a raw
+  object rather than a nested array. Note this also means a `Traversable` held
+  on a property — an `ArrayIterator`, or a generator — is now serialized as an
+  array where it previously passed through untouched.
+- A single-model cast fed a collection this package did not create unwrapped it
+  with `get_object_vars()`, which yields the collection's internal storage
+  rather than its items. Any traversable value is now unwrapped by iteration.
+
+### Changed
+
+- `castToCollectionModel()` returns `mixed` rather than `Collection`. The class
+  is chosen by `collectionClass()`, and the narrower type would forbid any
+  implementation that is not a subclass of this package's own. Widening is safe
+  for existing overrides, which may still declare the narrower type.
+
+## [1.1.0] - 2026-09-10
 
 ### Added
 

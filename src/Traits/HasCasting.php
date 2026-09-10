@@ -161,7 +161,7 @@ trait HasCasting
             if (is_subclass_of($target, CastsArgonautAttribute::class)) {
                 $customCast = $this->customCast($target);
 
-                return new Collection(array_map(
+                return $this->newCollection(array_map(
                     fn (mixed $item): mixed => $item === null ? null : $customCast->get($key, $item),
                     $this->normalizeIterableValue($value, 'collection'),
                 ));
@@ -179,6 +179,33 @@ trait HasCasting
         }
 
         return $value;
+    }
+
+    /**
+     * The collection class this DTO's `collection:` casts produce.
+     *
+     * Override to use a different implementation -- a framework's collection,
+     * or your own. The package names no collection but its own and gains no
+     * dependency from this: whatever class string is returned is instantiated
+     * directly. It must accept an array in its constructor, expose
+     * map(callable), and be Traversable so the value can be walked again on
+     * serialization.
+     *
+     * @return class-string
+     */
+    protected function collectionClass(): string
+    {
+        return Collection::class;
+    }
+
+    /**
+     * @param  array<int|string, mixed>  $items
+     */
+    protected function newCollection(array $items): mixed
+    {
+        $class = $this->collectionClass();
+
+        return new $class($items);
     }
 
     /**
@@ -230,13 +257,19 @@ trait HasCasting
         };
     }
 
-    /** @return Collection<mixed> */
-    protected function castToCollectionModel(string $cast, mixed $value): Collection
+    /**
+     * The return type is deliberately `mixed` rather than Collection: the class
+     * is chosen by collectionClass(), and a narrower type here would forbid any
+     * implementation that is not a subclass of this package's own. Widening is
+     * safe for existing overrides, which may still declare the narrower type.
+     */
+    protected function castToCollectionModel(string $cast, mixed $value): mixed
     {
         [, $class] = explode(':', $cast, 2);
         $items = $this->normalizeIterableValue($value, 'collection');
 
-        return (new Collection($items))->map(fn (mixed $item): mixed => $this->castItem($class, $item));
+        return $this->newCollection($items)
+            ->map(fn (mixed $item): mixed => $this->castItem($class, $item));
     }
 
     /** @return array<int|string, mixed> */
@@ -282,6 +315,11 @@ trait HasCasting
 
         if ($value instanceof Collection) {
             $value = $value->all();
+        } elseif ($value instanceof Traversable) {
+            // A collection this package did not create still has to be unwrapped
+            // by iteration; get_object_vars() would hand back its internal
+            // storage rather than its items.
+            $value = iterator_to_array($value);
         } elseif (is_object($value)) {
             $value = get_object_vars($value);
         }
