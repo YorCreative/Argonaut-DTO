@@ -8,37 +8,42 @@
     "packages": [
         {
             "name": "yorcreative/data-validation",
-            "version": "v1.0.0",
+            "version": "v1.1.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/YorCreative/Data-Validation.git",
-                "reference": "3261079eabc145668aa6bd6d5a85d03e09645dde"
+                "reference": "554647e3f8b0594947b4414e17d23b57cae51666"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/YorCreative/Data-Validation/zipball/3261079eabc145668aa6bd6d5a85d03e09645dde",
-                "reference": "3261079eabc145668aa6bd6d5a85d03e09645dde",
+                "url": "https://api.github.com/repos/YorCreative/Data-Validation/zipball/554647e3f8b0594947b4414e17d23b57cae51666",
+                "reference": "554647e3f8b0594947b4414e17d23b57cae51666",
                 "shasum": ""
             },
             "require": {
-                "php": "^8.3|^8.4"
+                "php": "^8.3 || ^8.4 || ^8.5"
             },
             "require-dev": {
                 "friendsofphp/php-cs-fixer": "^3.44.2",
-                "illuminate/filesystem": "^10.0 || ^11.0",
-                "illuminate/translation": "^10.0 || ^11.0",
-                "illuminate/validation": "^10.0 || ^11.0",
+                "illuminate/config": "^10.0 || ^11.0 || ^12.0 || ^13.0",
+                "illuminate/filesystem": "^10.0 || ^11.0 || ^12.0 || ^13.0",
+                "illuminate/support": "^10.0 || ^11.0 || ^12.0 || ^13.0",
+                "illuminate/translation": "^10.0 || ^11.0 || ^12.0 || ^13.0",
+                "illuminate/validation": "^10.0 || ^11.0 || ^12.0 || ^13.0",
+                "laravel/framework": "^12.0 || ^13.0",
                 "mockery/mockery": "^1.0",
-                "orchestra/testbench": "^9.0|^10.0",
                 "phpunit/phpunit": "^10.0|^11.5.3",
                 "squizlabs/php_codesniffer": "^3.8.0",
-                "symfony/translation": "^6.0 || ^7.0"
+                "symfony/translation": "^6.0 || ^7.0 || ^8.0"
+            },
+            "suggest": {
+                "illuminate/support": "Required only when using the optional Laravel ServiceProvider (^10.0 || ^11.0 || ^12.0 || ^13.0)."
             },
             "type": "library",
             "extra": {
                 "laravel": {
                     "providers": [
-                        "YorCreative\\DataValidation\\DataValidationServiceProvider"
+                        "YorCreative\\DataValidation\\Laravel\\DataValidationServiceProvider"
                     ]
                 }
             },
@@ -77,7 +82,7 @@
             ],
             "support": {
                 "issues": "https://github.com/YorCreative/Data-Validation/issues",
-                "source": "https://github.com/YorCreative/Data-Validation/tree/v1.0.0"
+                "source": "https://github.com/YorCreative/Data-Validation/tree/v1.1.0"
             },
             "funding": [
                 {
@@ -85,7 +90,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2025-06-11T18:05:32+00:00"
+            "time": "2026-09-10T13:59:21+00:00"
         }
     ],
     "packages-dev": [
