@@ -214,12 +214,16 @@ class Collection implements ArrayAccess, Countable, IteratorAggregate, JsonSeria
                 return $item->{$key};
             }
 
-            // Not readable by any route. A property that exists but is neither
-            // public nor exposed is a programming error, and reporting null for
-            // it would be indistinguishable from a legitimately null value and
-            // from a misspelled name. A key that is simply absent stays null,
-            // as it does for arrays above.
-            if (property_exists($item, $key) && ! (new ReflectionProperty($item, $key))->isPublic()) {
+            // isset() being false does not prove the property is unreadable: a
+            // conventional __isset() reports false for a value that is simply
+            // null. So an object offering __get() is left to answer for itself
+            // below, and only a non-public property with no accessor at all is
+            // treated as a programming error -- reporting null for that would
+            // be indistinguishable from a genuine null and from a typo. A key
+            // that is merely absent stays null, as it does for arrays above.
+            if (property_exists($item, $key)
+                && ! (new ReflectionProperty($item, $key))->isPublic()
+                && ! method_exists($item, '__get')) {
                 throw new LogicException(sprintf(
                     'Collection::pluck() cannot read $%s on %s: the property is not accessible '
                     .'and is not exposed through __isset()/__get(). Expose it, or pluck a public property.',

@@ -86,10 +86,20 @@ abstract class ArgonautImmutableDTO implements ArgonautDTOContract
         /** @var static $copy */
         $copy = (new ReflectionClass(static::class))->newInstanceWithoutConstructor();
 
+        $shadowed = [];
+
         foreach ($this->copyableProperties() as $property) {
             $name = $property->getName();
 
-            if (in_array($name, $changed, true) || ! $property->isInitialized($this)) {
+            // Properties arrive most-derived first, so the first slot seen for
+            // a name is the one initializeFromAttributes() would write. Only
+            // that one is skipped when the property is changing; a same-named
+            // private slot declared further up the hierarchy is a separate
+            // property and must still be copied, or it is left uninitialized.
+            $isTarget = ! isset($shadowed[$name]);
+            $shadowed[$name] = true;
+
+            if (($isTarget && in_array($name, $changed, true)) || ! $property->isInitialized($this)) {
                 continue;
             }
 
@@ -120,11 +130,17 @@ abstract class ArgonautImmutableDTO implements ArgonautDTOContract
 
         for ($class = new ReflectionClass($this); $class !== false; $class = $class->getParentClass()) {
             foreach ($class->getProperties() as $property) {
-                if ($property->isStatic() || isset($seen[$property->getName()])) {
+                // Identified by declaring class as well as name: a private
+                // property in a parent and one of the same name in a child are
+                // two distinct slots, and de-duplicating on the name alone
+                // dropped the parent's.
+                $id = $property->getDeclaringClass()->getName().'::'.$property->getName();
+
+                if ($property->isStatic() || isset($seen[$id])) {
                     continue;
                 }
 
-                $seen[$property->getName()] = true;
+                $seen[$id] = true;
                 $properties[] = $property;
             }
         }

@@ -2,6 +2,7 @@
 
 namespace YorCreative\ArgonautDTO;
 
+use WeakMap;
 use YorCreative\ArgonautDTO\Traits\HasCasting;
 use YorCreative\ArgonautDTO\Traits\HasFactories;
 use YorCreative\ArgonautDTO\Traits\HasKeyMapping;
@@ -10,6 +11,18 @@ use YorCreative\ArgonautDTO\Traits\HasValidation;
 
 class ArgonautDTO implements ArgonautDTOContract
 {
+    /**
+     * Objects currently inside setAttributes().
+     *
+     * Static, and therefore invisible to get_object_vars(), so it neither
+     * appears in serialized output nor reserves another property name on
+     * subclasses. A WeakMap keeps no object alive, matching the guard
+     * HasSerialization already uses.
+     *
+     * @var WeakMap<object, true>|null
+     */
+    private static ?WeakMap $bulkAssignmentGuard = null;
+
     use HasCasting;
     use HasFactories;
     use HasKeyMapping;
@@ -31,26 +44,38 @@ class ArgonautDTO implements ArgonautDTOContract
     /** @param array<string, mixed> $attributes */
     public function setAttributes(array $attributes): static
     {
-        // Keys are passed through to setAttribute() unmapped, so a subclass
-        // overriding it still sees every bulk assignment and mapping happens
-        // exactly once (there). Prioritisation is resolved through the map so
-        // a prioritized property named by an incoming alias is still ordered
-        // correctly.
-        $maps = $this->keyMaps();
+        // Mapping runs once here, over the whole input. That is also where a
+        // collision is settled -- when an alias and its target property both
+        // appear, the loser is dropped while it is still just an array key, so
+        // an invalid losing value is never assigned to a typed property.
+        $attributes = $this->mapInputKeys($attributes);
 
-        foreach ($this->prioritizedAttributes as $property) {
-            foreach (array_keys($attributes) as $key) {
-                if ((string) ($maps[$key] ?? $key) !== $property) {
-                    continue;
+        // setAttribute() is still the assignment seam, so a subclass override
+        // runs for bulk input too, and it receives canonical property names --
+        // an override that normalises per property cannot do so if it is handed
+        // an alias. The guard below stops it mapping a second time, which would
+        // walk a chained map (a -> b, b -> c) an extra hop.
+        $guard = self::$bulkAssignmentGuard ??= new WeakMap;
+        $alreadyGuarded = isset($guard[$this]);
+        $guard[$this] = true;
+
+        try {
+            foreach ($this->prioritizedAttributes as $key) {
+                if (array_key_exists($key, $attributes)) {
+                    $this->setAttribute((string) $key, $attributes[$key]);
+                    unset($attributes[$key]);
                 }
-
-                $this->setAttribute((string) $key, $attributes[$key]);
-                unset($attributes[$key]);
             }
-        }
 
-        foreach ($attributes as $key => $value) {
-            $this->setAttribute((string) $key, $value);
+            foreach ($attributes as $key => $value) {
+                $this->setAttribute((string) $key, $value);
+            }
+        } finally {
+            // A nested setAttributes() -- one reached from inside an override --
+            // must leave the outer call's guard standing.
+            if (! $alreadyGuarded) {
+                unset($guard[$this]);
+            }
         }
 
         return $this;
@@ -66,9 +91,19 @@ class ArgonautDTO implements ArgonautDTOContract
      */
     public function setAttribute(string $key, mixed $value): static
     {
-        $maps = $this->keyMaps();
+        // Inside setAttributes() the key is already canonical: mapping ran once
+        // over the whole array, which is where collisions were settled too.
+        if (! $this->insideBulkAssignment()) {
+            $maps = $this->keyMaps();
+            $key = (string) ($maps[$key] ?? $key);
+        }
 
-        return $this->assignAttribute($maps[$key] ?? $key, $value);
+        return $this->assignAttribute($key, $value);
+    }
+
+    private function insideBulkAssignment(): bool
+    {
+        return self::$bulkAssignmentGuard !== null && isset(self::$bulkAssignmentGuard[$this]);
     }
 
     /**
