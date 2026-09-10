@@ -140,4 +140,138 @@ final class CollectionTest extends TestCase
     {
         self::assertSame([1, 'two'], (new Collection([1, 'two']))->jsonSerialize());
     }
+
+    public function test_reduce_folds_items_into_an_accumulator(): void
+    {
+        $sum = (new Collection([1, 2, 3]))->reduce(
+            static fn (int $carry, int $item): int => $carry + $item,
+            0
+        );
+
+        self::assertSame(6, $sum);
+    }
+
+    public function test_reduce_returns_the_initial_value_when_empty(): void
+    {
+        self::assertSame(9, (new Collection)->reduce(static fn (int $c, mixed $i): int => $c + 1, 9));
+    }
+
+    public function test_reduce_passes_the_key_as_the_third_argument(): void
+    {
+        $keys = (new Collection(['a' => 1, 'b' => 2]))->reduce(
+            static fn (array $carry, int $item, string|int $key): array => [...$carry, $key],
+            []
+        );
+
+        self::assertSame(['a', 'b'], $keys);
+    }
+
+    public function test_last_returns_the_final_item(): void
+    {
+        self::assertSame('c', (new Collection(['a', 'b', 'c']))->last());
+    }
+
+    public function test_last_returns_the_default_when_empty(): void
+    {
+        self::assertSame('fallback', (new Collection)->last('fallback'));
+    }
+
+    public function test_contains_finds_a_value_strictly(): void
+    {
+        $collection = new Collection([1, 2, 3]);
+
+        self::assertTrue($collection->contains(2));
+        self::assertFalse($collection->contains('2'));
+    }
+
+    public function test_contains_accepts_a_predicate(): void
+    {
+        $collection = new Collection([1, 2, 3]);
+
+        self::assertTrue($collection->contains(static fn (int $item): bool => $item > 2));
+        self::assertFalse($collection->contains(static fn (int $item): bool => $item > 9));
+    }
+
+    public function test_pluck_extracts_a_key_from_arrays(): void
+    {
+        $collection = new Collection([['id' => 1, 'name' => 'a'], ['id' => 2, 'name' => 'b']]);
+
+        self::assertSame(['a', 'b'], $collection->pluck('name')->all());
+    }
+
+    public function test_pluck_extracts_a_property_from_objects(): void
+    {
+        $collection = new Collection([new TagDTO(['name' => 'x']), new TagDTO(['name' => 'y'])]);
+
+        self::assertSame(['x', 'y'], $collection->pluck('name')->all());
+    }
+
+    public function test_pluck_can_key_the_result(): void
+    {
+        $collection = new Collection([['id' => 'a', 'name' => 'alpha'], ['id' => 'b', 'name' => 'beta']]);
+
+        self::assertSame(['a' => 'alpha', 'b' => 'beta'], $collection->pluck('name', 'id')->all());
+    }
+
+    public function test_pluck_yields_null_for_a_missing_key(): void
+    {
+        self::assertSame([null], (new Collection([['id' => 1]]))->pluck('absent')->all());
+    }
+
+    public function test_group_by_buckets_items_into_collections(): void
+    {
+        $collection = new Collection([1, 2, 3, 4]);
+
+        $grouped = $collection->groupBy(static fn (int $n): string => $n % 2 === 0 ? 'even' : 'odd');
+
+        self::assertSame(['odd', 'even'], array_keys($grouped->all()));
+        self::assertInstanceOf(Collection::class, $grouped['odd']);
+        self::assertSame([1, 3], $grouped['odd']->all());
+        self::assertSame([2, 4], $grouped['even']->all());
+    }
+
+    public function test_group_by_returns_an_empty_collection_when_empty(): void
+    {
+        self::assertSame([], (new Collection)->groupBy(static fn (mixed $i): string => 'x')->all());
+    }
+
+    public function test_key_by_rekeys_items(): void
+    {
+        $collection = new Collection([new TagDTO(['name' => 'x']), new TagDTO(['name' => 'y'])]);
+
+        $keyed = $collection->keyBy(static fn (TagDTO $tag): string => $tag->name);
+
+        self::assertSame(['x', 'y'], array_keys($keyed->all()));
+        self::assertInstanceOf(TagDTO::class, $keyed['x']);
+    }
+
+    public function test_key_by_keeps_the_last_item_on_a_duplicate_key(): void
+    {
+        $collection = new Collection([['k' => 'a', 'v' => 1], ['k' => 'a', 'v' => 2]]);
+
+        $keyed = $collection->keyBy(static fn (array $row): string => $row['k']);
+
+        self::assertCount(1, $keyed);
+        self::assertSame(2, $keyed['a']['v']);
+    }
+
+    public function test_pluck_reads_array_access_offsets(): void
+    {
+        $collection = new Collection([
+            new Collection(['name' => 'x']),
+            new Collection(['name' => 'y']),
+        ]);
+
+        self::assertSame(['x', 'y'], $collection->pluck('name')->all());
+    }
+
+    public function test_pluck_yields_null_for_a_missing_array_access_offset(): void
+    {
+        self::assertSame([null], (new Collection([new Collection([])]))->pluck('absent')->all());
+    }
+
+    public function test_pluck_yields_null_for_scalar_items(): void
+    {
+        self::assertSame([null, null], (new Collection([1, 'two']))->pluck('anything')->all());
+    }
 }

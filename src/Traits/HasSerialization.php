@@ -34,7 +34,7 @@ trait HasSerialization
     /** @return list<string> */
     protected function getExcludedSerializationProperties(): array
     {
-        return ['prioritizedAttributes', 'casts', 'nestedAssemblers'];
+        return ['prioritizedAttributes', 'casts', 'nestedAssemblers', 'maps'];
     }
 
     protected function castOutputValue(mixed $value, int $depth): mixed
@@ -118,8 +118,19 @@ trait HasSerialization
      */
     public function toJson(int $options = 0, ?int $depth = null): string
     {
-        $data = $this->toArray($depth);
+        return $this->encodeJson($this->toArray($depth), $options);
+    }
 
+    /**
+     * Shared by toJson() and HasKeyMapping::toMappedJson() so both encode
+     * with identical semantics and can never silently diverge.
+     *
+     * @param  array<string, mixed>  $data
+     *
+     * @throws RuntimeException when encoding fails.
+     */
+    protected function encodeJson(array $data, int $options): string
+    {
         try {
             try {
                 return json_encode($data, $options | JSON_THROW_ON_ERROR);
@@ -169,7 +180,10 @@ trait HasSerialization
         return array_diff_key($this->toArray(), array_flip($keys));
     }
 
-    /** @param array<int, array<string, mixed>> $items */
+    /**
+     * @param  array<int, array<string, mixed>>  $items
+     * @return Collection<static>
+     */
     public static function collection(array $items = []): Collection
     {
         return (new Collection($items))->map(fn (mixed $item): static => new static($item));

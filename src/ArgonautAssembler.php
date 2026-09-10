@@ -14,7 +14,10 @@ class ArgonautAssembler
     /** @var array<class-string, array<string, ReflectionMethod>> */
     protected static array $reflectionMap = [];
 
-    /** @param iterable<int|string, object|array<string, mixed>> $items */
+    /**
+     * @param  iterable<int|string, object|array<string, mixed>>  $items
+     * @return Collection<mixed>
+     */
     public static function fromCollection(iterable $items, string $transformedInputClass, ?self $instance = null): Collection
     {
         $result = [];
@@ -26,7 +29,10 @@ class ArgonautAssembler
         return new Collection($result);
     }
 
-    /** @param array<int|string, object|array<string, mixed>> $items */
+    /**
+     * @param  array<int|string, object|array<string, mixed>>  $items
+     * @return Collection<mixed>
+     */
     public static function fromArray(array $items, string $transformedInputClass, ?self $instance = null): Collection
     {
         return static::fromCollection($items, $transformedInputClass, $instance);
