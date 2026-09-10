@@ -27,6 +27,12 @@ Targeting 1.2.0.
   so the value can be walked again on serialization. `newCollection()` is
   available to override instead if construction needs more than `new $class`.
 
+  The class is also recognised as a cast-directive prefix, so the directive can
+  name the collection actually in use — `MyCollection::class.':'.TagDTO::class`
+  — alongside this package's own FQCN and the `collection:` shorthand. Without
+  that, any other prefix matched nothing, fell through to `class_exists()` and
+  returned the value **uncast, with no error raised**.
+
   The static `collection()` factory is unaffected and still returns this
   package's `Collection`: it has no instance to ask, and `collectionClass()` is
   an instance method by design so two DTO classes can differ.

@@ -8,7 +8,9 @@ use YorCreative\ArgonautDTO\Tests\Fixtures\ForeignCollection;
 use YorCreative\ArgonautDTO\Tests\Fixtures\ForeignCollectionCastDTO;
 use YorCreative\ArgonautDTO\Tests\Fixtures\ForeignCollectionCustomCastDTO;
 use YorCreative\ArgonautDTO\Tests\Fixtures\ForeignCollectionHolderDTO;
+use YorCreative\ArgonautDTO\Tests\Fixtures\ForeignCollectionPrefixDTO;
 use YorCreative\ArgonautDTO\Tests\Fixtures\TagDTO;
+use YorCreative\ArgonautDTO\Tests\Fixtures\UnknownPrefixDTO;
 
 /**
  * A DTO may name the collection class its `collection:` casts produce.
@@ -53,6 +55,44 @@ class PluggableCollectionTest extends TestCase
 
         $this->assertInstanceOf(ForeignCollection::class, $dto->tags);
         $this->assertSame(['A', null, 'C'], $dto->tags->all());
+    }
+
+    // -----------------------------------------------------------------
+    // The configured class is recognised as a cast directive prefix
+    // -----------------------------------------------------------------
+
+    public function test_the_configured_collection_class_is_accepted_as_a_cast_prefix(): void
+    {
+        // A caller naming their own collection in the directive --
+        // ForeignCollection::class.':'.TagDTO::class -- must be recognised.
+        // Only this package's own FQCN and the literal `collection:` were, so
+        // any other prefix matched nothing, fell through to class_exists() and
+        // returned the value uncast, with no error.
+        $dto = new ForeignCollectionPrefixDTO(['tags' => [['name' => 'a'], ['name' => 'b']]]);
+
+        $this->assertInstanceOf(ForeignCollection::class, $dto->tags);
+        $this->assertContainsOnlyInstancesOf(TagDTO::class, $dto->tags->all());
+        $this->assertCount(2, $dto->tags->all());
+    }
+
+    public function test_the_packages_own_prefix_still_works_on_a_reconfigured_dto(): void
+    {
+        // Both prefixes are recognised, so a DTO that changed its collection
+        // class can still be handed a directive written the original way.
+        $dto = new ForeignCollectionCastDTO(['tags' => [['name' => 'a']]]);
+
+        $this->assertInstanceOf(ForeignCollection::class, $dto->tags);
+        $this->assertSame([['name' => 'a']], $dto->toArray()['tags']);
+    }
+
+    public function test_an_unrecognised_prefix_is_still_left_alone(): void
+    {
+        // Guard against the prefix check becoming permissive: a directive
+        // naming something that is not the configured collection must not be
+        // treated as one.
+        $dto = new UnknownPrefixDTO(['tags' => [['name' => 'a']]]);
+
+        $this->assertIsArray($dto->tags, 'An unknown directive leaves the value as given.');
     }
 
     // -----------------------------------------------------------------

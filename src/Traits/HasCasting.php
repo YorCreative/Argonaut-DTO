@@ -155,7 +155,7 @@ trait HasCasting
             return $this->castToEnum($cast, $value);
         }
 
-        if (str_starts_with($cast, Collection::class.':') || str_starts_with($cast, 'collection:')) {
+        if ($this->isCollectionDirective($cast)) {
             $target = explode(':', $cast, 2)[1];
 
             if (is_subclass_of($target, CastsArgonautAttribute::class)) {
@@ -199,6 +199,23 @@ trait HasCasting
     }
 
     /**
+     * Whether a cast directive names a collection.
+     *
+     * The class returned by collectionClass() is recognised alongside this
+     * package's own and the literal `collection:` shorthand, so a caller may
+     * write the directive with the collection they actually use --
+     * `MyCollection::class.':'.TagDTO::class`. Without that the prefix matched
+     * nothing, fell through to class_exists() and returned the value uncast,
+     * with no error raised.
+     */
+    protected function isCollectionDirective(string $cast): bool
+    {
+        return str_starts_with($cast, Collection::class.':')
+            || str_starts_with($cast, $this->collectionClass().':')
+            || str_starts_with($cast, 'collection:');
+    }
+
+    /**
      * @param  array<int|string, mixed>  $items
      */
     protected function newCollection(array $items): mixed
@@ -227,7 +244,7 @@ trait HasCasting
             return [$cast[0], true];
         }
 
-        if (is_string($cast) && (str_starts_with($cast, Collection::class.':') || str_starts_with($cast, 'collection:'))) {
+        if (is_string($cast) && $this->isCollectionDirective($cast)) {
             $target = explode(':', $cast, 2)[1];
 
             return [is_subclass_of($target, CastsArgonautAttribute::class) ? null : $target, true];

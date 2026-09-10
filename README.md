@@ -582,6 +582,15 @@ final class OrderDTO extends ArgonautDTO
 }
 ```
 
+The cast directive may name that collection too — all three of these are
+recognised:
+
+```php
+'lines' => Collection::class.':'.LineDTO::class,   // the class you configured
+'lines' => \YorCreative\ArgonautDTO\Collection::class.':'.LineDTO::class,
+'lines' => 'collection:'.LineDTO::class,           // shorthand
+```
+
 The package gains no dependency from this — it instantiates the class string
 you return and nothing more. The contract is:
 
