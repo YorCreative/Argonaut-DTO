@@ -560,6 +560,69 @@ levels; `toJson()` raises the encoder limit to fit whatever the walk produced. N
 `collection:` casts and by `collection()`. It implements `ArrayAccess`,
 `Countable`, `IteratorAggregate` and `JsonSerializable`.
 
+### Using a different collection
+
+`collection:` casts produce whatever class `collectionClass()` returns, so a
+DTO can use a framework's collection, or your own, instead:
+
+```php
+use Illuminate\Support\Collection;
+
+final class OrderDTO extends ArgonautDTO
+{
+    protected array $casts = ['lines' => 'collection:'.LineDTO::class];
+
+    /** @var Collection<int, LineDTO> */
+    public Collection $lines;
+
+    protected function collectionClass(): string
+    {
+        return Collection::class;
+    }
+}
+```
+
+The cast directive may name that collection too — all three of these are
+recognised:
+
+```php
+'lines' => Collection::class.':'.LineDTO::class,   // the class you configured
+'lines' => \YorCreative\ArgonautDTO\Collection::class.':'.LineDTO::class,
+'lines' => 'collection:'.LineDTO::class,           // shorthand
+```
+
+The package gains no dependency from this — it instantiates the class string
+you return and nothing more. The contract is:
+
+| Requirement | Why |
+|---|---|
+| `__construct(array $items)` | how the cast builds it |
+| `map(callable): self` | applied per item by `collection:<DTO>` casts |
+| `Traversable` | so `toArray()` can walk it back into a nested array |
+
+Both are validated when the collection is built, so a class missing either is
+reported by name rather than failing later inside the casting engine. The
+checks run outside `newCollection()`, so overriding that factory does not skip
+them.
+
+A recognised collection is **iterated** on output rather than read through
+`all()`, so a subclass overriding `getIterator()` decides what is published.
+
+Only a collection the DTO recognises is walked on output — this package's own,
+or the one `collectionClass()` returns. An object that merely happens to be
+iterable is returned as it is, so `json_encode()` still calls its
+`jsonSerialize()`, a generator is not consumed by being serialized, and an
+object with an unrelated iterator is still read as a property bag.
+
+`Illuminate\Support\Collection` satisfies all three. Override
+`newCollection(array $items)` instead if construction needs more than
+`new $class($items)`.
+
+`collection()` is unaffected and always returns this package's `Collection`.
+It is a static factory, so it has no instance to ask, and `collectionClass()`
+is deliberately an instance method so two DTOs of different classes can differ.
+Build the collection yourself if you need another type there.
+
 It is generic over its value type, so static analysis narrows elements:
 
 ```php

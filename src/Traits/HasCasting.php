@@ -155,13 +155,13 @@ trait HasCasting
             return $this->castToEnum($cast, $value);
         }
 
-        if (str_starts_with($cast, Collection::class.':') || str_starts_with($cast, 'collection:')) {
+        if ($this->isCollectionDirective($cast)) {
             $target = explode(':', $cast, 2)[1];
 
             if (is_subclass_of($target, CastsArgonautAttribute::class)) {
                 $customCast = $this->customCast($target);
 
-                return new Collection(array_map(
+                return $this->makeCollection(array_map(
                     fn (mixed $item): mixed => $item === null ? null : $customCast->get($key, $item),
                     $this->normalizeIterableValue($value, 'collection'),
                 ));
@@ -179,6 +179,134 @@ trait HasCasting
         }
 
         return $value;
+    }
+
+    /**
+     * The collection class this DTO's `collection:` casts produce.
+     *
+     * Override to use a different implementation -- a framework's collection,
+     * or your own. The package names no collection but its own and gains no
+     * dependency from this: whatever class string is returned is instantiated
+     * directly. It must accept an array in its constructor, expose
+     * map(callable), and be Traversable so the value can be walked again on
+     * serialization.
+     *
+     * @return class-string
+     */
+    protected function collectionClass(): string
+    {
+        return Collection::class;
+    }
+
+    /**
+     * Whether this DTO recognises a value as one of its collections.
+     *
+     * Recognition is deliberately narrow: this package's own Collection, and
+     * the class collectionClass() returns. Treating every Traversable as a
+     * collection reaches objects that merely happen to be iterable -- a
+     * property bag with an unrelated iterator, an object whose JsonSerializable
+     * output is the representation it means to publish, or a generator that is
+     * consumed by being read.
+     *
+     * Recognition is kept separate from reading the items, so a caller that
+     * must register the value before touching it -- serialization, guarding
+     * against a cycle -- can do so without consuming a single-use iterator
+     * first.
+     */
+    protected function isRecognisedCollection(mixed $value): bool
+    {
+        if ($value instanceof Collection) {
+            return true;
+        }
+
+        $configured = $this->collectionClass();
+
+        return $value instanceof $configured && $value instanceof Traversable;
+    }
+
+    /**
+     * The items of a recognised collection, for the casting paths that need an
+     * array to work from. Serialization deliberately does NOT use this: it
+     * iterates the collection so an overridden getIterator() decides what is
+     * emitted.
+     *
+     * @return array<int|string, mixed>|null
+     */
+    protected function collectionItems(mixed $value): ?array
+    {
+        if (! $this->isRecognisedCollection($value)) {
+            return null;
+        }
+
+        if ($value instanceof Collection) {
+            return $value->all();
+        }
+
+        /** @var Traversable<int|string, mixed> $value */
+        return iterator_to_array($value);
+    }
+
+    /**
+     * Whether a cast directive names a collection.
+     *
+     * The class returned by collectionClass() is recognised alongside this
+     * package's own and the literal `collection:` shorthand, so a caller may
+     * write the directive with the collection they actually use --
+     * `MyCollection::class.':'.TagDTO::class`. Without that the prefix matched
+     * nothing, fell through to class_exists() and returned the value uncast,
+     * with no error raised.
+     */
+    protected function isCollectionDirective(string $cast): bool
+    {
+        return str_starts_with($cast, Collection::class.':')
+            || str_starts_with($cast, $this->collectionClass().':')
+            || str_starts_with($cast, 'collection:');
+    }
+
+    /**
+     * @param  array<int|string, mixed>  $items
+     */
+    protected function newCollection(array $items): mixed
+    {
+        $class = $this->collectionClass();
+
+        return new $class($items);
+    }
+
+    /**
+     * Build a collection and check it is usable.
+     *
+     * Every casting path goes through here rather than calling newCollection()
+     * directly, and this method is private: validation therefore still runs
+     * when a subclass replaces the factory, which it would not if the checks
+     * lived inside the overridable method. A collection that cannot be mapped
+     * or walked is reported here, naming the class, instead of surfacing later
+     * as an undefined-method error inside the casting engine or as an object
+     * appearing raw in serialized output.
+     *
+     * @param  array<int|string, mixed>  $items
+     */
+    private function makeCollection(array $items): mixed
+    {
+        $collection = $this->newCollection($items);
+
+        if (! is_object($collection) || ! is_callable([$collection, 'map'])) {
+            throw new InvalidArgumentException(sprintf(
+                '%s produced %s, which has no callable map() method and cannot be used as a collection.',
+                static::class.'::newCollection()',
+                get_debug_type($collection),
+            ));
+        }
+
+        if (! $collection instanceof Traversable) {
+            throw new InvalidArgumentException(sprintf(
+                '%s produced %s, which is not Traversable and so cannot be serialized back to an array.',
+                static::class.'::newCollection()',
+                get_debug_type($collection),
+            ));
+        }
+
+        return $collection;
     }
 
     /**
@@ -200,7 +328,7 @@ trait HasCasting
             return [$cast[0], true];
         }
 
-        if (is_string($cast) && (str_starts_with($cast, Collection::class.':') || str_starts_with($cast, 'collection:'))) {
+        if (is_string($cast) && $this->isCollectionDirective($cast)) {
             $target = explode(':', $cast, 2)[1];
 
             return [is_subclass_of($target, CastsArgonautAttribute::class) ? null : $target, true];
@@ -230,13 +358,19 @@ trait HasCasting
         };
     }
 
-    /** @return Collection<mixed> */
-    protected function castToCollectionModel(string $cast, mixed $value): Collection
+    /**
+     * The return type is deliberately `mixed` rather than Collection: the class
+     * is chosen by collectionClass(), and a narrower type here would forbid any
+     * implementation that is not a subclass of this package's own. Widening is
+     * safe for existing overrides, which may still declare the narrower type.
+     */
+    protected function castToCollectionModel(string $cast, mixed $value): mixed
     {
         [, $class] = explode(':', $cast, 2);
         $items = $this->normalizeIterableValue($value, 'collection');
 
-        return (new Collection($items))->map(fn (mixed $item): mixed => $this->castItem($class, $item));
+        return $this->makeCollection($items)
+            ->map(fn (mixed $item): mixed => $this->castItem($class, $item));
     }
 
     /** @return array<int|string, mixed> */
@@ -280,8 +414,13 @@ trait HasCasting
             return $value;
         }
 
-        if ($value instanceof Collection) {
-            $value = $value->all();
+        // A collection this package did not create is unwrapped by iteration,
+        // because get_object_vars() would hand back its internal storage rather
+        // than its items. Anything else iterable is left to get_object_vars():
+        // an object that merely has an iterator is a property bag, and its
+        // properties are what a single-model cast wants.
+        if (($items = $this->collectionItems($value)) !== null) {
+            $value = $items;
         } elseif (is_object($value)) {
             $value = get_object_vars($value);
         }
