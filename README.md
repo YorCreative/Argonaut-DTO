@@ -383,9 +383,11 @@ $dto->name; // 'Ada' — 'name_field' is no longer a recognized mapping, so it
 ```
 
 Key mapping runs before anything else that processes input — before the
-`$prioritizedAttributes` pass and before casting. A `$casts` entry (or cast
-attribute) for a mapped property is therefore keyed by the **property name**,
-not the incoming key:
+`$prioritizedAttributes` pass and before casting. That applies to every input
+path: the constructor, `setAttributes()`, `merge()`, `with()`, and the
+single-key `setAttribute()`, which accepts either the incoming key or the
+property name. A `$casts` entry (or cast attribute) for a mapped property is
+therefore keyed by the **property name**, not the incoming key:
 
 ```php
 final class AmountDTO extends ArgonautDTO
@@ -404,10 +406,16 @@ $amount->price; // 4200 (int)
 ```
 
 If both a mapped key and its target property name appear in the same input
-array, whichever occurs **later** in the array wins. `with()` relies on this:
-on `ArgonautImmutableDTO` it rebuilds by merging the current state (already
-keyed by property name) with the new attributes and re-running key mapping,
-so the freshly-mapped value — appended after the current state — wins:
+array, whichever occurs **later** in the array wins.
+
+`with()` on `ArgonautImmutableDTO` does not rely on that rule. It maps the
+incoming keys to work out which properties are changing, copies every
+*unchanged* property to the new instance verbatim, and routes only the given
+attributes through the normal input path. Unchanged values are never re-cast:
+a full-state rebuild would run the casting engine over already-cast values,
+and while a built-in cast survives that on its identity guard, a custom cast
+is a transformation and would apply twice. Mapped keys work in `with()` for
+the same reason they work anywhere else — they are mapped on the way in:
 
 ```php
 use YorCreative\ArgonautDTO\ArgonautImmutableDTO;
@@ -449,6 +457,33 @@ $person->toMappedJson();  // '{"first_name":"Grace"}'
 
 `toMappedJson()` reports encoding failures exactly as `toJson()` does — both
 delegate to the same internal encoder.
+
+**Renaming onto an existing property throws.** If a mapping renames one
+property onto the name of another property that also serializes, both land on
+the same output key and one value would be lost. `toMappedArray()` and
+`toMappedJson()` raise `LogicException` instead of dropping it:
+
+```php
+final class AmbiguousDTO extends ArgonautDTO
+{
+    // fullName is renamed to 'name' on output, but 'name' is a property too.
+    protected array $maps = ['name' => 'fullName'];
+
+    public ?string $fullName = null;
+    public ?string $name = null;
+}
+
+(new AmbiguousDTO(['fullName' => 'Ada']))->toMappedArray();
+// LogicException: two keys collide on 'name'
+```
+
+`toArray()` is unaffected — it emits property names, which are unique by
+construction.
+
+**Two properties cannot claim the same incoming key.** Declaring
+`#[MapFrom('key')]` on more than one property is ambiguous — only one could
+receive the value, and which one would depend on reflection order — so it
+throws `LogicException` when the map is first built.
 
 **Key mapping is top-level only.** `toMappedArray()` renames this DTO's own
 keys; it does not reach into nested DTOs and rename their keys too, even if
@@ -577,11 +612,22 @@ These mirror the names and common calling conventions of
 Laravel's operator overloads — `contains()` takes a value or a predicate, not
 `($key, $operator, $value)`.
 
-One caveat worth knowing: `contains()` decides between "value" and "predicate" by
-testing `instanceof Closure`, so a collection whose *items are themselves
-closures* cannot be searched by value — the argument is always invoked as a
-predicate. `Illuminate\Support\Collection` has the same limitation. Use
-`in_array($needle, $collection->all(), true)` if you need that.
+One caveat worth knowing: `contains()` decides between "value" and "predicate"
+by testing `is_callable()`, with one deliberate exception — **a string is
+always a value**, never a predicate, so a collection of strings stays
+searchable for one that happens to name a function (`contains('is_int')` looks
+for the string). Every other callable form is invoked as a predicate: a
+closure, `[$object, 'method']`, or an object with `__invoke()`. Predicates
+receive `($item, $key)`, so a one-argument function such as `is_int(...)` is
+not a valid predicate. A collection whose *items are themselves closures*
+cannot be searched by value; `Illuminate\Support\Collection` has the same
+limitation. Use `in_array($needle, $collection->all(), true)` if you need that.
+
+`pluck()` reads array keys, `ArrayAccess` offsets, and **public** object
+properties. A key that is simply absent yields `null`, as it does for arrays.
+A property that exists but is not public throws `LogicException` rather than
+yielding `null`, so a private field is never silently reported as empty and a
+typo is never mistaken for one.
 
 ## Immutable DTOs
 

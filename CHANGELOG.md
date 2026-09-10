@@ -47,6 +47,32 @@ release.
   `toArray()` runs, nested DTOs have already been flattened into plain
   arrays.
 
+### Behavior on misconfiguration
+
+Six paths added in this release could fail silently — losing a value, doing
+nothing, or reporting a value indistinguishable from a typo. Each now reports
+the problem at the point it is detectable:
+
+- `toMappedArray()` / `toMappedJson()` throw `LogicException` when the inverse
+  mapping lands two keys on the same output key, instead of dropping one value.
+  `toArray()` and `toJson()` are unaffected.
+- Declaring `#[MapFrom]` for the same incoming key on two properties throws
+  `LogicException`. Previously whichever property reflection reached last won
+  and the other was never populated.
+- `setAttribute()` now applies key mapping, like every other input path. It
+  previously assigned the raw key, so passing a mapped key matched no property
+  and the call silently did nothing. It still accepts the property name.
+- `Collection::contains()` now treats any callable except a string as a
+  predicate — `[$object, 'method']` and `__invoke` objects included. A string
+  remains a value, so a collection of strings stays searchable. Predicates are
+  invoked as `($item, $key)`.
+- `Collection::pluck()` throws `LogicException` for a property that exists but
+  is not public, rather than yielding `null`. An absent key still yields `null`.
+- `Collection::validateAll(true)` builds its `ValidationException` from the
+  errors it already collected, instead of re-validating the failing item. Any
+  work or side effect in `rules()` now happens once per item rather than twice
+  for the first failure.
+
 ### Changed (no behavior change)
 
 - `collection()` now declares `@return Collection<static>`, so static analysis

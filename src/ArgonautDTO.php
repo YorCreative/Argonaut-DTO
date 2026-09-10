@@ -33,21 +33,42 @@ class ArgonautDTO implements ArgonautDTOContract
     {
         $attributes = $this->mapInputKeys($attributes);
 
+        // assignAttribute() rather than setAttribute(): the keys above are
+        // already mapped, and mapping them a second time would walk a chained
+        // map (a -> b, b -> c) an extra hop.
         foreach ($this->prioritizedAttributes as $key) {
             if (array_key_exists($key, $attributes)) {
-                $this->setAttribute($key, $attributes[$key]);
+                $this->assignAttribute($key, $attributes[$key]);
                 unset($attributes[$key]);
             }
         }
 
         foreach ($attributes as $key => $value) {
-            $this->setAttribute((string) $key, $value);
+            $this->assignAttribute((string) $key, $value);
         }
 
         return $this;
     }
 
+    /**
+     * Set one attribute, applying key mapping first.
+     *
+     * Every other input path -- the constructor, setAttributes(), merge() --
+     * maps incoming keys before assigning, and this is an input path too. It
+     * used to assign the raw key, so a mapped key silently matched no property
+     * and the call did nothing.
+     */
     public function setAttribute(string $key, mixed $value): static
+    {
+        $maps = $this->keyMaps();
+
+        return $this->assignAttribute($maps[$key] ?? $key, $value);
+    }
+
+    /**
+     * Assign an attribute by property name, with no key mapping applied.
+     */
+    private function assignAttribute(string $key, mixed $value): static
     {
         $class = static::class;
         static::$setterMap[$class] ??= [];

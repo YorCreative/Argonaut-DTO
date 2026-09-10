@@ -2,6 +2,7 @@
 
 namespace YorCreative\ArgonautDTO\Traits;
 
+use LogicException;
 use ReflectionAttribute;
 use ReflectionClass;
 use RuntimeException;
@@ -49,7 +50,22 @@ trait HasKeyMapping
                 continue;
             }
 
-            $maps[$attributes[0]->newInstance()->from] = $property->getName();
+            $from = $attributes[0]->newInstance()->from;
+
+            // Two properties claiming the same incoming key is ambiguous: only
+            // one can receive the value, and which one depends on reflection
+            // order. Reject it rather than silently leaving a property unset.
+            if (isset($maps[$from])) {
+                throw new LogicException(sprintf(
+                    '%s declares #[MapFrom(%s)] on both $%s and $%s. An incoming key may map to only one property.',
+                    static::class,
+                    var_export($from, true),
+                    $maps[$from],
+                    $property->getName(),
+                ));
+            }
+
+            $maps[$from] = $property->getName();
         }
 
         return $maps;
@@ -123,7 +139,24 @@ trait HasKeyMapping
         $mapped = [];
 
         foreach ($this->toArray($depth) as $key => $value) {
-            $mapped[$inverse[$key] ?? $key] = $value;
+            $target = $inverse[$key] ?? $key;
+
+            // Renaming can land two distinct properties on one output key --
+            // when a property is mapped onto the name of another property that
+            // also serializes. Writing both would drop one value silently, so
+            // the ambiguous mapping is reported instead.
+            if (array_key_exists($target, $mapped)) {
+                throw new LogicException(sprintf(
+                    '%s::toMappedArray() cannot rename %s to %s: two keys collide on %s. '
+                    .'Rename the mapping, or exclude the competing property from serialization.',
+                    static::class,
+                    var_export($key, true),
+                    var_export($target, true),
+                    var_export($target, true),
+                ));
+            }
+
+            $mapped[$target] = $value;
         }
 
         return $mapped;

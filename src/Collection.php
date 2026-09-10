@@ -3,11 +3,11 @@
 namespace YorCreative\ArgonautDTO;
 
 use ArrayAccess;
-use Closure;
 use Countable;
 use IteratorAggregate;
 use JsonSerializable;
 use LogicException;
+use ReflectionProperty;
 use Traversable;
 
 /**
@@ -118,7 +118,11 @@ class Collection implements ArrayAccess, Countable, IteratorAggregate, JsonSeria
      */
     public function contains(mixed $value): bool
     {
-        if (! $value instanceof Closure) {
+        // A string is always a value, never a predicate: a collection of
+        // strings has to stay searchable for one that happens to name a
+        // function. Every other callable form -- Closure, [$object, 'method'],
+        // an __invoke object -- is invoked as the documented predicate.
+        if (is_string($value) || ! is_callable($value)) {
             return in_array($value, $this->items, true);
         }
 
@@ -203,6 +207,20 @@ class Collection implements ArrayAccess, Countable, IteratorAggregate, JsonSeria
         }
 
         if (is_object($item)) {
+            // ?? reports false for a property that exists but is not readable
+            // here, which is indistinguishable from a legitimately null value
+            // and from a typo. A declared-but-inaccessible property is a
+            // programming error and is reported as one; a key that simply is
+            // not there stays null, as it does for arrays above.
+            if (property_exists($item, $key) && ! (new ReflectionProperty($item, $key))->isPublic()) {
+                throw new LogicException(sprintf(
+                    'Collection::pluck() cannot read $%s on %s: the property is not accessible. '
+                    .'Expose it, or pluck a public property.',
+                    $key,
+                    $item::class,
+                ));
+            }
+
             return $item->{$key} ?? null;
         }
 
@@ -314,11 +332,11 @@ class Collection implements ArrayAccess, Countable, IteratorAggregate, JsonSeria
             return true;
         }
 
-        if ($throw && $firstFailure !== null) {
-            // Re-raise the failing item's own exception rather than inventing
-            // an aggregate type. Index information is available via
-            // validateAll(false).
-            $firstFailure->validate(true);
+        if ($throw) {
+            // Built from the errors already captured above. Re-running
+            // validate(true) on the failing item would validate it a second
+            // time, doubling any work or side effect in rules().
+            throw new ValidationException(reset($errors));
         }
 
         return $errors;
