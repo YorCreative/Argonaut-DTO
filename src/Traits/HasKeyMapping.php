@@ -91,7 +91,15 @@ trait HasKeyMapping
             fn (string $property): bool => ! in_array($property, $mappedProperties, true)
         );
 
-        return array_merge($attributeMaps, $this->maps);
+        // Not array_merge(): it renumbers integer keys, and PHP stores a
+        // numeric-string array key as an integer, so an incoming alias like
+        // '123' would be reindexed to 0 and stop matching. Assigning key by
+        // key preserves it while keeping $maps the winner on conflict.
+        foreach ($this->maps as $incoming => $property) {
+            $attributeMaps[$incoming] = $property;
+        }
+
+        return $attributeMaps;
     }
 
     /**

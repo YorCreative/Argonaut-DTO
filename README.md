@@ -85,12 +85,14 @@ generic, so static analysis now narrows the elements.
 `fromJson()` throws `JsonException` on malformed JSON. It also throws
 `JsonException` when the JSON is valid but does not decode to an object — for
 example `'null'`, `'"a string"'`, `'123'`, or a JSON array such as
-`'[{"fullName":"Ada"}]'` or `'[1,2]'` — with a message naming the type it
-found instead, such as `ProfileDTO::fromJson() expects a JSON object, null
-given.` An empty array (`'[]'`) is indistinguishable from an empty object
-(`'{}'`) once decoded, so both are accepted and produce an empty DTO. All
-three named constructors are available on both `ArgonautDTO` and
-`ArgonautImmutableDTO`.
+`'[{"fullName":"Ada"}]'`, `'[1,2]'` or `'[]'` — with a message naming the type
+it found instead, such as `ProfileDTO::fromJson() expects a JSON object, null
+given.` The root type is read from the document itself rather than inferred
+from the decoded value, because associative decoding erases the difference: an
+empty array and an empty object both decode to `[]`, and a JSON object with
+numeric keys (`'{"0":"a"}'`) decodes to a PHP list. So `'[]'` is rejected and
+`'{"0":"a"}'` is accepted. All three named constructors are available on both
+`ArgonautDTO` and `ArgonautImmutableDTO`.
 
 ## Nested casts
 

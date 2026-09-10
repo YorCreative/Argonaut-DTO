@@ -75,15 +75,25 @@ abstract class ArgonautImmutableDTO implements ArgonautDTOContract
         // survive on their identity guards, but a custom cast is a
         // transformation and would apply twice, and a nestedAssembler would
         // try to re-assemble an already-assembled DTO.
-        $changed = array_keys($this->mapInputKeys($attributes));
+        // Internal keys are dropped from the changed set: initializeFromAttributes()
+        // skips them, so treating one as "changed" would stop it being copied
+        // from the original and silently reset it to its declared default.
+        $changed = array_filter(
+            array_keys($this->mapInputKeys($attributes)),
+            fn (int|string $key): bool => ! $this->isInternalProperty((string) $key),
+        );
 
         /** @var static $copy */
         $copy = (new ReflectionClass(static::class))->newInstanceWithoutConstructor();
 
-        foreach ($this->rawAttributes() as $key => $value) {
-            if (! in_array($key, $changed, true)) {
-                (new ReflectionProperty($copy, $key))->setValue($copy, $value);
+        foreach ($this->copyableProperties() as $property) {
+            $name = $property->getName();
+
+            if (in_array($name, $changed, true) || ! $property->isInitialized($this)) {
+                continue;
             }
+
+            $property->setValue($copy, $property->getValue($this));
         }
 
         $copy->initializeFromAttributes($attributes);
@@ -92,18 +102,33 @@ abstract class ArgonautImmutableDTO implements ArgonautDTOContract
     }
 
     /**
-     * The current attribute values.
+     * Every instance property on this object, including private ones declared
+     * by subclasses.
      *
-     * Internal properties (casts, nestedAssemblers, prioritizedAttributes) are
-     * not filtered here: initializeFromAttributes() already skips them via
-     * isInternalProperty(), which reads the same exclusion list. If this helper
-     * ever gains a caller that does NOT go through the constructor, that caller
-     * must do its own filtering.
+     * get_object_vars($this) resolves in the scope it is called from, which is
+     * this class -- a private property declared on a subclass is invisible to
+     * it. Copying from that list left such a property at its declared default
+     * on the copy, or, for a typed property with no default, uninitialized and
+     * fatal on first read. Walking the hierarchy sees all of them.
      *
-     * @return array<string, mixed>
+     * @return list<ReflectionProperty>
      */
-    private function rawAttributes(): array
+    private function copyableProperties(): array
     {
-        return get_object_vars($this);
+        $properties = [];
+        $seen = [];
+
+        for ($class = new ReflectionClass($this); $class !== false; $class = $class->getParentClass()) {
+            foreach ($class->getProperties() as $property) {
+                if ($property->isStatic() || isset($seen[$property->getName()])) {
+                    continue;
+                }
+
+                $seen[$property->getName()] = true;
+                $properties[] = $property;
+            }
+        }
+
+        return $properties;
     }
 }

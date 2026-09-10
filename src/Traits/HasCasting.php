@@ -126,8 +126,12 @@ trait HasCasting
             && is_subclass_of($cast[0], CastsArgonautAttribute::class)) {
             $customCast = $this->customCast($cast[0]);
 
+            // A null element bypasses the caster, mirroring the null guard
+            // applied to a whole value above. A cast is a transformation of a
+            // present value; handing it null makes every implementation write
+            // its own null check.
             return array_map(
-                fn (mixed $item): mixed => $customCast->get($key, $item),
+                fn (mixed $item): mixed => $item === null ? null : $customCast->get($key, $item),
                 $this->normalizeIterableValue($value, 'array'),
             );
         }
@@ -158,7 +162,7 @@ trait HasCasting
                 $customCast = $this->customCast($target);
 
                 return new Collection(array_map(
-                    fn (mixed $item): mixed => $customCast->get($key, $item),
+                    fn (mixed $item): mixed => $item === null ? null : $customCast->get($key, $item),
                     $this->normalizeIterableValue($value, 'collection'),
                 ));
             }

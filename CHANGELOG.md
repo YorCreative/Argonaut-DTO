@@ -26,9 +26,11 @@ release.
 - Named constructors on both `ArgonautDTO` and `ArgonautImmutableDTO`:
   `fromArray()` and `fromJson()`. `fromJson()` throws `JsonException` both for
   malformed JSON and for valid JSON that does not decode to an object — this
-  includes a JSON array such as `[{"fullName":"Ada"}]` or `[1,2]`. An empty
-  array (`[]`) is indistinguishable from an empty object (`{}`) after
-  decoding, so both are accepted and produce an empty DTO.
+  includes a JSON array such as `[{"fullName":"Ada"}]`, `[1,2]` or `[]`. The
+  root type is read from the document rather than inferred from the decoded
+  value, so an empty array is correctly rejected and a JSON object with
+  numeric keys (`{"0":"a"}`) is correctly accepted; associative decoding makes
+  both of those indistinguishable by shape alone.
 - `Collection::validateAll()` and `Collection::isValidAll()` for validating a
   collection of DTOs in one call, with errors keyed by the item that failed.
 - `with()` on both `ArgonautDTO` and `ArgonautImmutableDTO`, returning a copy
@@ -72,6 +74,30 @@ the problem at the point it is detectable:
   errors it already collected, instead of re-validating the failing item. Any
   work or side effect in `rules()` now happens once per item rather than twice
   for the first failure.
+
+### Fixed
+
+- `with()` on `ArgonautImmutableDTO` preserves private properties declared by
+  a subclass. The copy was built from `get_object_vars($this)`, which resolves
+  in the parent's scope and cannot see them, so such a property reverted to its
+  declared default on the copy — or, for a typed property with no default, was
+  left uninitialized and fatal on first read.
+- An internal key (`casts`, `nestedAssemblers`, `maps`, ...) passed to `with()`
+  no longer blanks that configuration on the copy. It counted as a changed
+  property, so it was not carried over, while `initializeFromAttributes()`
+  skipped it as internal and never set it.
+- A numeric incoming alias such as `['123' => 'code']` survives the map merge.
+  `array_merge()` renumbers integer keys, and PHP stores a numeric-string key
+  as an integer, so the alias was silently reindexed and stopped matching.
+- Bulk custom casts skip `null` elements in both the array and
+  `collection:` forms, mirroring the null guard already applied to a whole
+  value. Every cast implementation previously had to null-check for itself.
+- `Collection::pluck()` reads a property published through `__isset()`/`__get()`
+  again; the accessibility guard added in this release ran before the magic
+  accessors could answer.
+- An overridden `setAttribute()` is called for every input path again —
+  constructor, `setAttributes()`, `merge()` and `with()` — after bulk
+  assignment was briefly routed around it.
 
 ### Changed (no behavior change)
 

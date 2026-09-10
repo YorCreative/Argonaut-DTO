@@ -207,15 +207,22 @@ class Collection implements ArrayAccess, Countable, IteratorAggregate, JsonSeria
         }
 
         if (is_object($item)) {
-            // ?? reports false for a property that exists but is not readable
-            // here, which is indistinguishable from a legitimately null value
-            // and from a typo. A declared-but-inaccessible property is a
-            // programming error and is reported as one; a key that simply is
-            // not there stays null, as it does for arrays above.
+            // isset() runs __isset() when the property is not readable here, so
+            // a private property deliberately published through magic accessors
+            // answers for itself before any accessibility check is applied.
+            if (isset($item->{$key})) {
+                return $item->{$key};
+            }
+
+            // Not readable by any route. A property that exists but is neither
+            // public nor exposed is a programming error, and reporting null for
+            // it would be indistinguishable from a legitimately null value and
+            // from a misspelled name. A key that is simply absent stays null,
+            // as it does for arrays above.
             if (property_exists($item, $key) && ! (new ReflectionProperty($item, $key))->isPublic()) {
                 throw new LogicException(sprintf(
-                    'Collection::pluck() cannot read $%s on %s: the property is not accessible. '
-                    .'Expose it, or pluck a public property.',
+                    'Collection::pluck() cannot read $%s on %s: the property is not accessible '
+                    .'and is not exposed through __isset()/__get(). Expose it, or pluck a public property.',
                     $key,
                     $item::class,
                 ));
@@ -300,6 +307,11 @@ class Collection implements ArrayAccess, Countable, IteratorAggregate, JsonSeria
      * programming error and surfaces as a LogicException rather than being
      * reported as invalid.
      *
+     * When $throw is true the exception carries the FIRST failing item's
+     * errors. It is a plain ValidationException built from the errors already
+     * collected, not the exception that item would have raised itself, and it
+     * carries no index -- call validateAll(false) for errors keyed by item.
+     *
      * @return true|array<int|string, array<string, list<string>>>
      *
      * @throws ValidationException when $throw is true and any item is invalid.
@@ -307,7 +319,6 @@ class Collection implements ArrayAccess, Countable, IteratorAggregate, JsonSeria
     public function validateAll(bool $throw = true): bool|array
     {
         $errors = [];
-        $firstFailure = null;
 
         foreach ($this->items as $key => $item) {
             if (! $item instanceof ArgonautDTOContract) {
@@ -324,7 +335,6 @@ class Collection implements ArrayAccess, Countable, IteratorAggregate, JsonSeria
             if ($result !== true) {
                 /** @var array<string, list<string>> $result */
                 $errors[$key] = $result;
-                $firstFailure ??= $item;
             }
         }
 

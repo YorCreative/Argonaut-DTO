@@ -31,20 +31,26 @@ class ArgonautDTO implements ArgonautDTOContract
     /** @param array<string, mixed> $attributes */
     public function setAttributes(array $attributes): static
     {
-        $attributes = $this->mapInputKeys($attributes);
+        // Keys are passed through to setAttribute() unmapped, so a subclass
+        // overriding it still sees every bulk assignment and mapping happens
+        // exactly once (there). Prioritisation is resolved through the map so
+        // a prioritized property named by an incoming alias is still ordered
+        // correctly.
+        $maps = $this->keyMaps();
 
-        // assignAttribute() rather than setAttribute(): the keys above are
-        // already mapped, and mapping them a second time would walk a chained
-        // map (a -> b, b -> c) an extra hop.
-        foreach ($this->prioritizedAttributes as $key) {
-            if (array_key_exists($key, $attributes)) {
-                $this->assignAttribute($key, $attributes[$key]);
+        foreach ($this->prioritizedAttributes as $property) {
+            foreach (array_keys($attributes) as $key) {
+                if ((string) ($maps[$key] ?? $key) !== $property) {
+                    continue;
+                }
+
+                $this->setAttribute((string) $key, $attributes[$key]);
                 unset($attributes[$key]);
             }
         }
 
         foreach ($attributes as $key => $value) {
-            $this->assignAttribute((string) $key, $value);
+            $this->setAttribute((string) $key, $value);
         }
 
         return $this;
