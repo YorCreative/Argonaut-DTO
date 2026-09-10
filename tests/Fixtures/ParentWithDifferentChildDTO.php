@@ -4,16 +4,13 @@ namespace YorCreative\ArgonautDTO\Tests\Fixtures;
 
 use YorCreative\ArgonautDTO\ArgonautDTO;
 
-class ForeignCollectionCastDTO extends ArgonautDTO
+class ParentWithDifferentChildDTO extends ArgonautDTO
 {
     protected array $casts = [
-        'tags' => 'collection:'.TagDTO::class,
-        'single' => TagDTO::class,
+        'children' => 'collection:'.ChildDifferentCollectionDTO::class,
     ];
 
-    public mixed $tags = null;
-
-    public ?TagDTO $single = null;
+    public mixed $children = null;
 
     protected function collectionClass(): string
     {

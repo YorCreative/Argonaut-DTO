@@ -39,14 +39,39 @@ Targeting 1.2.0.
 
 ### Fixed
 
-- `toArray()` and `toJson()` walk any traversable value, not only this
-  package's own `Collection`. A collection from elsewhere was emitted as a raw
-  object rather than a nested array. Note this also means a `Traversable` held
-  on a property — an `ArrayIterator`, or a generator — is now serialized as an
-  array where it previously passed through untouched.
-- A single-model cast fed a collection this package did not create unwrapped it
-  with `get_object_vars()`, which yields the collection's internal storage
-  rather than its items. Any traversable value is now unwrapped by iteration.
+- `toArray()` and `toJson()` walk a collection the DTO recognises — this
+  package's own, or the class `collectionClass()` returns — where previously
+  only the former was walked and anything else was emitted as a raw object.
+  The collection is **iterated**, not read through `all()`, so a subclass that
+  overrides `getIterator()` decides what is published.
+  Recognition is deliberately narrow rather than "any `Traversable`": an object
+  that merely happens to be iterable keeps the representation it publishes, so
+  `jsonSerialize()` is still honoured, a generator is not consumed by being
+  serialized, and a property bag is not replaced by whatever its iterator
+  yields.
+- A single-model cast fed a recognised collection unwraps it to its items —
+  through `all()` for this package's own `Collection`, and by iteration for a
+  configured foreign one. `get_object_vars()` would yield the collection's
+  internal storage instead. An object that is merely iterable is still read as
+  a property bag.
+
+  Note the deliberate asymmetry with serialization, which always iterates:
+  casting wants the data a collection holds, serialization the view it
+  publishes, so a subclass narrowing `getIterator()` casts on everything it
+  stores while serializing only what it exposes.
+- A collection holding itself, or two referencing each other, raises
+  `CircularReferenceException` instead of recursing until the stack exhausts.
+  Identity is registered before the collection is read, so a cycle in a
+  single-use (generator-backed) collection is reported as a cycle rather than
+  as a closed-generator error.
+  Walking a collection does not spend depth and the existing guard tracked only
+  DTOs. The guard is scoped to the active path, so the same collection in two
+  sibling positions is serialized twice rather than reported as a cycle.
+- A produced collection is validated: one with no callable `map()`, or that is
+  not `Traversable`, raises `InvalidArgumentException` naming the class. The
+  checks run outside `newCollection()`, so replacing that factory in a subclass
+  does not skip them, and they cover both the DTO and custom-cast collection
+  paths.
 
 ### Changed
 

@@ -4,7 +4,6 @@ namespace YorCreative\ArgonautDTO\Traits;
 
 use JsonException;
 use RuntimeException;
-use Traversable;
 use WeakMap;
 use YorCreative\ArgonautDTO\ArgonautDTOContract;
 use YorCreative\ArgonautDTO\CircularReferenceException;
@@ -48,12 +47,7 @@ trait HasSerialization
             return $value->toArray($depth);
         }
 
-        // Any traversable value is walked, not just this package's own
-        // Collection: a DTO whose collectionClass() names another
-        // implementation would otherwise emit it here as a raw object instead
-        // of a nested array. DTOs are already handled above, so this only
-        // reaches plain iterables.
-        if ($value instanceof Collection || $value instanceof Traversable || is_array($value)) {
+        if (is_array($value)) {
             $output = [];
 
             foreach ($value as $key => $item) {
@@ -63,7 +57,44 @@ trait HasSerialization
             return $output;
         }
 
-        return $value;
+        // Only values this DTO recognises as a collection are walked -- this
+        // package's own Collection, or the class collectionClass() returns.
+        // Every other object is returned as it is, so an object that merely
+        // happens to be iterable keeps whatever representation it publishes:
+        // json_encode() still calls its jsonSerialize(), a generator is not
+        // consumed by being serialized, and a property bag is not replaced by
+        // whatever its iterator yields.
+        if (! $this->isRecognisedCollection($value)) {
+            return $value;
+        }
+
+        // Registered BEFORE the collection is read. A collection holding itself
+        // would otherwise re-enter here forever -- the guard on toArray()
+        // tracks DTOs, and walking a collection does not spend depth -- and
+        // reading it first would consume a single-use iterator, so the cycle
+        // would surface as a closed-generator error rather than as one.
+        $guard = self::$serializationGuard ??= new WeakMap;
+
+        if (isset($guard[$value])) {
+            throw new CircularReferenceException($value::class);
+        }
+
+        $guard[$value] = true;
+
+        try {
+            $output = [];
+
+            // Iterated rather than read through all(): a subclass that
+            // overrides getIterator() decides what it publishes, and that is
+            // what serialization must emit.
+            foreach ($value as $key => $item) {
+                $output[$key] = $this->castOutputValue($item, $depth);
+            }
+
+            return $output;
+        } finally {
+            unset($guard[$value]);
+        }
     }
 
     /**

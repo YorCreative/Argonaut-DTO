@@ -600,6 +600,20 @@ you return and nothing more. The contract is:
 | `map(callable): self` | applied per item by `collection:<DTO>` casts |
 | `Traversable` | so `toArray()` can walk it back into a nested array |
 
+Both are validated when the collection is built, so a class missing either is
+reported by name rather than failing later inside the casting engine. The
+checks run outside `newCollection()`, so overriding that factory does not skip
+them.
+
+A recognised collection is **iterated** on output rather than read through
+`all()`, so a subclass overriding `getIterator()` decides what is published.
+
+Only a collection the DTO recognises is walked on output — this package's own,
+or the one `collectionClass()` returns. An object that merely happens to be
+iterable is returned as it is, so `json_encode()` still calls its
+`jsonSerialize()`, a generator is not consumed by being serialized, and an
+object with an unrelated iterator is still read as a property bag.
+
 `Illuminate\Support\Collection` satisfies all three. Override
 `newCollection(array $items)` instead if construction needs more than
 `new $class($items)`.
